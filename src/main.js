@@ -6,13 +6,17 @@ const state = {
   numerator: 3,
   denominator: 7,
   gridMultiple: 4,
+  equivalenceMultiple: 2,
   revealed: {
     numberline: false,
+    decimalNumberline: false,
     pie: false,
+    equivalence: false,
     money: false,
     hundredGrid: false,
     customGrid: false,
     pictogram: false,
+    percentage: false,
   },
 };
 
@@ -39,22 +43,39 @@ const coinClasses = {
   1: "coin-copper",
 };
 
+const equivalenceFillClasses = [
+  "equivalence-fill-blue",
+  "equivalence-fill-green",
+  "equivalence-fill-red",
+  "equivalence-fill-yellow",
+];
+
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const plural = (count, singular, pluralForm = `${singular}s`) =>
   count === 1 ? singular : pluralForm;
+const formatDecimal = (value, maxDigits = 1) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(maxDigits);
 
 function normalizeState() {
   state.denominator = clamp(Math.trunc(state.denominator) || 1, 1, 24);
   state.numerator = clamp(Math.trunc(state.numerator) || 0, 0, state.denominator);
   state.gridMultiple = clamp(Math.trunc(state.gridMultiple) || 1, 1, 12);
+  state.equivalenceMultiple = clamp(Math.trunc(state.equivalenceMultiple) || 2, 2, 8);
+}
+
+function mathMarkup(tex) {
+  return katex.renderToString(tex, {
+    throwOnError: false,
+  });
 }
 
 function mathFraction(numerator, denominator, displayStyle = false) {
-  return katex.renderToString(
-    `${displayStyle ? "\\dfrac" : "\\frac"}{${numerator}}{${denominator}}`,
-    {
-      throwOnError: false,
-    },
+  return mathMarkup(`${displayStyle ? "\\dfrac" : "\\frac"}{${numerator}}{${denominator}}`);
+}
+
+function mathEquivalence(numerator, denominator, multiple) {
+  return mathMarkup(
+    `\\frac{${numerator}}{${denominator}} = \\frac{${numerator * multiple}}{${denominator * multiple}}`,
   );
 }
 
@@ -120,6 +141,11 @@ function wedgePath(index, total, radius = 92, cx = 100, cy = 100) {
   ].join(" ");
 }
 
+function radialLine(angleDegrees, radius = 92, cx = 100, cy = 100) {
+  const end = polarToCartesian(cx, cy, radius, angleDegrees);
+  return `<line x1="${cx}" y1="${cy}" x2="${end.x}" y2="${end.y}"></line>`;
+}
+
 function setFraction(numerator, denominator) {
   state.numerator = numerator;
   state.denominator = denominator;
@@ -139,7 +165,7 @@ function renderNumberLine(numerator, denominator) {
       ? index === 0
         ? "0"
         : "1"
-      : `${index}/${denominator}`;
+      : mathFraction(index, denominator);
     return `
       <div class="numberline-tick" style="left:${index * segmentPercent}%">
         <span></span>
@@ -152,7 +178,7 @@ function renderNumberLine(numerator, denominator) {
     <section class="panel wide" aria-labelledby="numberline-title">
       ${renderPanelTitle(
         "numberline",
-        "Number line",
+        "Fraction numberline",
         `${numerator} of ${denominator} equal ${plural(denominator, "step")} ${colouredVerb} coloured.`,
         `Split into ${denominator} equal ${plural(denominator, "step")}.`,
       )}
@@ -162,7 +188,46 @@ function renderNumberLine(numerator, denominator) {
           ${ticks}
           ${
             revealed
-              ? `<div class="numberline-marker" style="left:${markerPercent}%">${numerator}/${denominator}</div>`
+              ? `<div class="numberline-marker" style="left:${markerPercent}%">${mathFraction(numerator, denominator)}</div>`
+              : ""
+          }
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderDecimalNumberLine(numerator, denominator) {
+  const revealed = state.revealed.decimalNumberline;
+  const value = numerator / denominator;
+  const markerPercent = value * 100;
+  const decimalText = formatDecimal(value, 3);
+  const ticks = Array.from({ length: 11 }, (_, index) => {
+    const tickValue = index / 10;
+    const label = index === 0 ? "0" : index === 10 ? "1" : tickValue.toFixed(1);
+    return `
+      <div class="numberline-tick decimal-tick" style="left:${index * 10}%">
+        <span></span>
+        <em>${label}</em>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <section class="panel wide" aria-labelledby="decimalNumberline-title">
+      ${renderPanelTitle(
+        "decimalNumberline",
+        "Decimal numberline",
+        `${numerator}/${denominator} is ${decimalText} as a decimal.`,
+        "Where does this fraction sit between 0 and 1 as a decimal?",
+      )}
+      <div class="numberline decimal-numberline" role="img" aria-label="Decimal numberline from 0 to 1${revealed ? ` filled to ${decimalText}` : ""}">
+        <div class="numberline-track">
+          <div class="numberline-fill decimal-fill" style="width:${revealed ? markerPercent : 0}%"></div>
+          ${ticks}
+          ${
+            revealed
+              ? `<div class="numberline-marker decimal-marker" style="left:${markerPercent}%">${decimalText}</div>`
               : ""
           }
         </div>
@@ -193,6 +258,76 @@ function renderPie(numerator, denominator) {
         ${slices}
         <circle cx="100" cy="100" r="92" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
       </svg>
+    </section>
+  `;
+}
+
+function renderEquivalencePie(numerator, denominator, multiple, revealed, split = false) {
+  const total = split ? denominator * multiple : denominator;
+  const selected = split ? numerator * multiple : numerator;
+  const slices =
+    total === 1
+      ? `<circle cx="100" cy="100" r="92" class="${revealed && selected === 1 ? "equivalence-fill-blue" : "pie-empty"}"></circle>`
+      : Array.from({ length: total }, (_, index) => {
+          const group = split ? Math.floor(index / multiple) : index;
+          const isSelected = revealed && index < selected;
+          const fillClass = isSelected
+            ? equivalenceFillClasses[group % equivalenceFillClasses.length]
+            : "pie-empty";
+          return `<path d="${wedgePath(index, total)}" class="${fillClass}"></path>`;
+        }).join("");
+  const groupLines =
+    split && denominator > 1
+      ? Array.from({ length: denominator }, (_, index) =>
+          radialLine((index / denominator) * 360),
+        ).join("")
+      : "";
+
+  return `
+    <svg class="pie equivalence-pie" viewBox="0 0 200 200" role="img">
+      ${slices}
+      <g class="equivalence-group-lines">${groupLines}</g>
+      <circle cx="100" cy="100" r="92" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
+    </svg>
+  `;
+}
+
+function renderEquivalence(numerator, denominator) {
+  const revealed = state.revealed.equivalence;
+  const multiple = state.equivalenceMultiple;
+  const equivalentNumerator = numerator * multiple;
+  const equivalentDenominator = denominator * multiple;
+  const splitText = `Each original slice is split into ${multiple}.`;
+
+  return `
+    <section class="panel wide" aria-labelledby="equivalence-title">
+      ${renderPanelTitle(
+        "equivalence",
+        "Equivalent fractions",
+        `${splitText} ${equivalentNumerator} of ${equivalentDenominator} smaller slices are coloured.`,
+        splitText,
+      )}
+      <label class="inline-control equivalence-control">
+        <span>Split each slice into</span>
+        <input id="equivalenceMultiple" type="range" min="2" max="8" value="${multiple}" />
+        <strong>${multiple}</strong>
+      </label>
+      <div class="equivalence-view" role="img" aria-label="${revealed ? `${numerator} over ${denominator} equals ${equivalentNumerator} over ${equivalentDenominator}` : `Original pie and split pie hidden answer`}">
+        <div class="equivalence-part">
+          ${renderEquivalencePie(numerator, denominator, multiple, revealed)}
+          <div class="equivalence-label">${mathFraction(numerator, denominator)}</div>
+        </div>
+        <div class="equivalence-symbol" aria-hidden="true">=</div>
+        <div class="equivalence-part">
+          ${renderEquivalencePie(numerator, denominator, multiple, revealed, true)}
+          <div class="equivalence-label">
+            ${revealed ? mathFraction(equivalentNumerator, equivalentDenominator) : "?"}
+          </div>
+        </div>
+      </div>
+      <div class="equivalence-equation" aria-hidden="${revealed ? "false" : "true"}">
+        ${revealed ? mathEquivalence(numerator, denominator, multiple) : ""}
+      </div>
     </section>
   `;
 }
@@ -239,10 +374,15 @@ function renderMoney(numerator, denominator) {
 function renderHundredGrid(numerator, denominator) {
   const revealed = state.revealed.hundredGrid;
   const exactSquares = (numerator / denominator) * 100;
-  const shadedSquares = Math.round(exactSquares);
+  const fullSquares = Math.floor(exactSquares);
+  const partialSquare = exactSquares - fullSquares;
+  const hasPartialSquare = partialSquare > 0.0001;
+  const squareText = `${formatDecimal(exactSquares)} of 100 squares`;
   const cells = Array.from({ length: 100 }, (_, index) => {
-    const selected = revealed && index < shadedSquares;
-    return `<span class="${selected ? "selected" : ""}"></span>`;
+    const selected = revealed && index < fullSquares;
+    const partial = revealed && hasPartialSquare && index === fullSquares;
+    const style = partial ? ` style="--partial-fill:${partialSquare * 100}%"` : "";
+    return `<span class="${selected ? "selected" : ""}${partial ? " partial" : ""}"${style}></span>`;
   }).join("");
 
   return `
@@ -250,10 +390,10 @@ function renderHundredGrid(numerator, denominator) {
       ${renderPanelTitle(
         "hundredGrid",
         "100 square",
-        `${shadedSquares} of 100 squares${Number.isInteger(exactSquares) ? "" : " (rounded)"}.`,
+        `${squareText}.`,
         "100 empty squares.",
       )}
-      <div class="grid hundred-grid" role="img" aria-label="10 by 10 grid${revealed ? ` with ${shadedSquares} squares shaded` : " with no squares shaded"}">
+      <div class="grid hundred-grid" role="img" aria-label="10 by 10 grid${revealed ? ` with ${squareText} shaded` : " with no squares shaded"}">
         ${cells}
       </div>
     </section>
@@ -314,11 +454,51 @@ function renderPictogram(numerator, denominator) {
   `;
 }
 
+function renderPercentage(numerator, denominator) {
+  const revealed = state.revealed.percentage;
+  const exactPercent = (numerator / denominator) * 100;
+  const roundedPercent = Math.round(exactPercent);
+  const exact = Number.isInteger(exactPercent);
+  const displayPercent = formatDecimal(exactPercent);
+  const markers = [0, 25, 50, 75, 100]
+    .map((value) => `<span style="left:${value}%">${value}%</span>`)
+    .join("");
+  const markerPosition = clamp(exactPercent, 0, 100);
+  const markerClass =
+    markerPosition === 0 ? " at-start" : markerPosition === 100 ? " at-end" : "";
+
+  return `
+    <section class="panel wide" aria-labelledby="percentage-title">
+      ${renderPanelTitle(
+        "percentage",
+        "Percentage",
+        `${displayPercent}% means ${displayPercent} out of 100.`,
+        "What percentage of the bar should be shaded?",
+      )}
+      <div class="percentage-vis" role="img" aria-label="${revealed ? `${displayPercent} percent shaded` : "Percentage bar with no answer shaded"}">
+        <div class="percentage-track">
+          <div class="percentage-fill" style="width:${revealed ? exactPercent : 0}%"></div>
+          <div class="percentage-markers">${markers}</div>
+          ${
+            revealed
+              ? `<div class="percentage-current${markerClass}" style="left:${markerPosition}%"><span>${displayPercent}%</span></div>`
+              : ""
+          }
+        </div>
+        <div class="percentage-answer">${revealed ? `${displayPercent}%` : "?"}</div>
+      </div>
+      ${
+        revealed && !exact
+          ? `<p class="hint">That is about ${roundedPercent}% rounded to the nearest whole percent.</p>`
+          : ""
+      }
+    </section>
+  `;
+}
+
 function render() {
   normalizeState();
   const { numerator, denominator } = state;
-  const percent = denominator === 0 ? 0 : (numerator / denominator) * 100;
-  const formattedPercent = percent.toFixed(percent % 1 === 0 ? 0 : 1);
   const app = document.querySelector("#app");
 
   app.innerHTML = `
@@ -330,7 +510,6 @@ function render() {
             <h1 id="app-title" aria-label="${numerator} over ${denominator}">
               <span class="hero-fraction">${mathFraction(numerator, denominator, true)}</span>
             </h1>
-            <p class="summary">${formattedPercent}%</p>
           </div>
 
           <form class="fraction-card" aria-label="Choose a fraction">
@@ -356,11 +535,14 @@ function render() {
 
         <div class="panels">
           ${renderNumberLine(numerator, denominator)}
+          ${renderDecimalNumberLine(numerator, denominator)}
           ${renderPie(numerator, denominator)}
           ${renderMoney(numerator, denominator)}
           ${renderHundredGrid(numerator, denominator)}
           ${renderCustomGrid(numerator, denominator)}
           ${renderPictogram(numerator, denominator)}
+          ${renderEquivalence(numerator, denominator)}
+          ${renderPercentage(numerator, denominator)}
         </div>
       </section>
     </main>
@@ -384,6 +566,13 @@ function render() {
     state.gridMultiple = Number(event.target.value);
     normalizeState();
     state.revealed.customGrid = false;
+    render();
+  });
+
+  document.querySelector("#equivalenceMultiple").addEventListener("input", (event) => {
+    state.equivalenceMultiple = Number(event.target.value);
+    normalizeState();
+    state.revealed.equivalence = false;
     render();
   });
 

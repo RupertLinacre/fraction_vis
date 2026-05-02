@@ -70,8 +70,8 @@ p {
 }
 
 h1 {
-  margin-bottom: 10px;
-  font-size: clamp(3.8rem, 13vw, 8rem);
+  margin-bottom: 0;
+  font-size: clamp(2.8rem, 9vw, 5.8rem);
   line-height: 1;
   letter-spacing: 0;
 }
@@ -230,7 +230,7 @@ h1 {
 }
 
 .numberline {
-  padding: 40px 22px 56px;
+  padding: 40px 22px 64px;
 }
 
 .numberline-track {
@@ -254,24 +254,28 @@ h1 {
   transform: translateX(-50%);
 }
 
-.numberline-tick span {
+.numberline-tick > span {
   display: block;
   width: 1px;
-  height: 34px;
+  height: 24px;
   background: #aab4bb;
   transform: translateY(-50%);
 }
 
 .numberline-tick em {
   position: absolute;
-  top: 25px;
+  top: 27px;
   left: 50%;
   color: var(--muted);
-  font-size: clamp(0.58rem, 1.8vw, 0.8rem);
+  font-size: clamp(0.9rem, 2.1vw, 1.12rem);
   font-style: normal;
   font-weight: 800;
   transform: translateX(-50%);
   white-space: nowrap;
+}
+
+.numberline-tick .katex {
+  font-size: 1em;
 }
 
 .numberline-marker {
@@ -286,6 +290,28 @@ h1 {
   font-weight: 900;
   text-align: center;
   transform: translateX(-50%);
+}
+
+.numberline-marker .katex {
+  font-size: 0.95em;
+}
+
+.decimal-numberline {
+  padding-top: 34px;
+}
+
+.decimal-tick em {
+  font-size: clamp(0.78rem, 1.8vw, 0.95rem);
+}
+
+.decimal-fill {
+  background: var(--green);
+}
+
+.decimal-marker {
+  min-width: 68px;
+  background: var(--green-soft);
+  font-size: 1rem;
 }
 
 .pie {
@@ -305,8 +331,186 @@ h1 {
   fill: var(--red);
 }
 
+.equivalence-fill-blue {
+  fill: var(--blue);
+}
+
+.equivalence-fill-green {
+  fill: var(--green);
+}
+
+.equivalence-fill-red {
+  fill: var(--red);
+}
+
+.equivalence-fill-yellow {
+  fill: var(--yellow);
+}
+
 .pie-empty {
   fill: #f2ead9;
+}
+
+.equivalence-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: clamp(12px, 4vw, 34px);
+  align-items: center;
+}
+
+.equivalence-part {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.equivalence-pie {
+  width: min(100%, 260px);
+}
+
+.equivalence-pie path,
+.equivalence-pie circle {
+  stroke: var(--paper);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.equivalence-group-lines line {
+  stroke: var(--paper);
+  stroke-linecap: round;
+  stroke-width: 7;
+}
+
+.equivalence-symbol {
+  font-size: clamp(2rem, 7vw, 4rem);
+  font-weight: 900;
+}
+
+.equivalence-label {
+  min-height: 34px;
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.equivalence-label .katex,
+.equivalence-equation .katex {
+  font-size: 1em;
+}
+
+.equivalence-equation {
+  min-height: 34px;
+  margin-top: 14px;
+  text-align: center;
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.equivalence-control {
+  max-width: 460px;
+}
+
+.percentage-vis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(82px, auto);
+  gap: 18px;
+  align-items: center;
+  padding-bottom: 48px;
+}
+
+.percentage-track {
+  position: relative;
+  height: 32px;
+  border: 0;
+  border-left: 2px solid var(--ink);
+  border-right: 2px solid var(--ink);
+  box-shadow:
+    inset 0 2px 0 var(--ink),
+    inset 0 -2px 0 var(--ink);
+  background: white;
+}
+
+.percentage-fill {
+  height: 100%;
+  background: var(--green);
+}
+
+.percentage-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.percentage-markers span {
+  position: absolute;
+  top: 48px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.percentage-markers span:first-child {
+  transform: translateX(0);
+}
+
+.percentage-markers span:last-child {
+  transform: translateX(-100%);
+}
+
+.percentage-markers span::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  width: 1px;
+  height: 38px;
+  background: #aab4bb;
+}
+
+.percentage-current {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  border-left: 3px solid var(--red);
+}
+
+.percentage-current span {
+  position: absolute;
+  top: 39px;
+  left: 0;
+  padding: 4px 7px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 900;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.percentage-current.at-start span {
+  transform: translateX(0);
+}
+
+.percentage-current.at-end span {
+  transform: translateX(-100%);
+}
+
+.percentage-answer {
+  display: grid;
+  min-height: 58px;
+  min-width: 82px;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper-strong);
+  font-size: 1.5rem;
+  font-weight: 900;
 }
 
 .coins {
@@ -377,6 +581,15 @@ h1 {
 .grid span.selected {
   border-color: #1d6f56;
   background: var(--green);
+}
+
+.grid span.partial {
+  border-color: #1d6f56;
+  background: linear-gradient(
+    90deg,
+    var(--green) 0 var(--partial-fill),
+    white var(--partial-fill) 100%
+  );
 }
 
 .hundred-grid {
@@ -470,5 +683,22 @@ h1 {
   .inline-control input {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+
+  .equivalence-view {
+    grid-template-columns: 1fr;
+  }
+
+  .equivalence-symbol {
+    line-height: 1;
+  }
+
+  .percentage-vis {
+    grid-template-columns: 1fr;
+    padding-bottom: 34px;
+  }
+
+  .percentage-answer {
+    width: max-content;
   }
 }
