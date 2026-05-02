@@ -70,10 +70,18 @@ p {
 }
 
 h1 {
-  margin-bottom: 4px;
+  margin-bottom: 10px;
   font-size: clamp(3.8rem, 13vw, 8rem);
-  line-height: 0.9;
+  line-height: 1;
   letter-spacing: 0;
+}
+
+.hero-fraction {
+  display: inline-block;
+}
+
+.hero-fraction .katex {
+  font-size: 1em;
 }
 
 .summary {
@@ -155,6 +163,10 @@ h1 {
 .quick-picks button:hover {
   background: var(--paper-strong);
   transform: translateY(-1px);
+}
+
+.quick-picks .katex {
+  font-size: 1.05rem;
 }
 
 .panels {
@@ -372,6 +384,8 @@ h1 {
 }
 
 .custom-grid {
+  width: 100%;
+  max-width: var(--grid-max-width);
   grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
 }
 

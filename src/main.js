@@ -1,3 +1,5 @@
+import katex from "katex";
+import "katex/dist/katex.min.css";
 import "./styles.css";
 
 const state = {
@@ -41,26 +43,19 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const plural = (count, singular, pluralForm = `${singular}s`) =>
   count === 1 ? singular : pluralForm;
 
-function gcd(a, b) {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y) {
-    const t = y;
-    y = x % y;
-    x = t;
-  }
-  return x || 1;
-}
-
-function simplify(numerator, denominator) {
-  const divisor = gcd(numerator, denominator);
-  return [numerator / divisor, denominator / divisor];
-}
-
 function normalizeState() {
   state.denominator = clamp(Math.trunc(state.denominator) || 1, 1, 24);
   state.numerator = clamp(Math.trunc(state.numerator) || 0, 0, state.denominator);
   state.gridMultiple = clamp(Math.trunc(state.gridMultiple) || 1, 1, 12);
+}
+
+function mathFraction(numerator, denominator, displayStyle = false) {
+  return katex.renderToString(
+    `${displayStyle ? "\\dfrac" : "\\frac"}{${numerator}}{${denominator}}`,
+    {
+      throwOnError: false,
+    },
+  );
 }
 
 function hideAnswers() {
@@ -270,6 +265,7 @@ function renderCustomGrid(numerator, denominator) {
   const total = denominator * state.gridMultiple;
   const shaded = numerator * state.gridMultiple;
   const columns = denominator;
+  const gridMaxWidth = columns * 48 + (columns - 1) * 4;
   const cells = Array.from({ length: total }, (_, index) => {
     const column = index % denominator;
     const selected = revealed && column < numerator;
@@ -289,7 +285,7 @@ function renderCustomGrid(numerator, denominator) {
         <input id="gridMultiple" type="range" min="1" max="12" value="${state.gridMultiple}" />
         <strong>${state.gridMultiple}</strong>
       </label>
-      <div class="grid custom-grid" style="--columns:${columns}" role="img" aria-label="Grid with ${total} squares${revealed ? ` and ${shaded} shaded` : " and none shaded"}">
+      <div class="grid custom-grid" style="--columns:${columns}; --grid-max-width:${gridMaxWidth}px" role="img" aria-label="Grid with ${total} squares${revealed ? ` and ${shaded} shaded` : " and none shaded"}">
         ${cells}
       </div>
     </section>
@@ -321,8 +317,8 @@ function renderPictogram(numerator, denominator) {
 function render() {
   normalizeState();
   const { numerator, denominator } = state;
-  const [simpleNumerator, simpleDenominator] = simplify(numerator, denominator);
   const percent = denominator === 0 ? 0 : (numerator / denominator) * 100;
+  const formattedPercent = percent.toFixed(percent % 1 === 0 ? 0 : 1);
   const app = document.querySelector("#app");
 
   app.innerHTML = `
@@ -331,33 +327,31 @@ function render() {
         <div class="intro">
           <div>
             <p class="eyebrow">Fraction Explorer</p>
-            <h1 id="app-title">${numerator}/${denominator}</h1>
-            <p class="summary">
-              ${numerator}/${denominator}
-              ${simpleNumerator === numerator && simpleDenominator === denominator ? "" : ` = ${simpleNumerator}/${simpleDenominator}`}
-              = ${percent.toFixed(percent % 1 === 0 ? 0 : 1)}%
-            </p>
+            <h1 id="app-title" aria-label="${numerator} over ${denominator}">
+              <span class="hero-fraction">${mathFraction(numerator, denominator, true)}</span>
+            </h1>
+            <p class="summary">${formattedPercent}%</p>
           </div>
 
           <form class="fraction-card" aria-label="Choose a fraction">
             <label>
-              <span>Top number</span>
+              <span>Numerator</span>
               <input id="numerator" type="number" min="0" max="${denominator}" value="${numerator}" inputmode="numeric" />
             </label>
             <span class="fraction-bar" aria-hidden="true"></span>
             <label>
-              <span>Bottom number</span>
+              <span>Denominator</span>
               <input id="denominator" type="number" min="1" max="24" value="${denominator}" inputmode="numeric" />
             </label>
           </form>
         </div>
 
         <div class="quick-picks" aria-label="Example fractions">
-          <button type="button" data-fraction="1/2">1/2</button>
-          <button type="button" data-fraction="1/3">1/3</button>
-          <button type="button" data-fraction="1/4">1/4</button>
-          <button type="button" data-fraction="3/7">3/7</button>
-          <button type="button" data-fraction="2/5">2/5</button>
+          <button type="button" data-fraction="1/2" aria-label="one half">${mathFraction(1, 2)}</button>
+          <button type="button" data-fraction="1/3" aria-label="one third">${mathFraction(1, 3)}</button>
+          <button type="button" data-fraction="1/4" aria-label="one quarter">${mathFraction(1, 4)}</button>
+          <button type="button" data-fraction="3/7" aria-label="three sevenths">${mathFraction(3, 7)}</button>
+          <button type="button" data-fraction="2/5" aria-label="two fifths">${mathFraction(2, 5)}</button>
         </div>
 
         <div class="panels">
