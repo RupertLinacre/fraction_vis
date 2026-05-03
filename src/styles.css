@@ -455,8 +455,16 @@ h1 {
   transform: translateX(0);
 }
 
+.percentage-markers span:first-child::before {
+  left: 0;
+}
+
 .percentage-markers span:last-child {
   transform: translateX(-100%);
+}
+
+.percentage-markers span:last-child::before {
+  left: 100%;
 }
 
 .percentage-markers span::before {
@@ -545,6 +553,13 @@ h1 {
 
 .coin-copper {
   background: #c87943;
+}
+
+.coin-fraction {
+  background: conic-gradient(
+    var(--green) 0 var(--coin-fill),
+    white var(--coin-fill) 100%
+  );
 }
 
 .coin-hidden {

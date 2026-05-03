@@ -335,19 +335,29 @@ function renderEquivalence(numerator, denominator) {
 function renderMoney(numerator, denominator) {
   const revealed = state.revealed.money;
   const exactPence = (numerator / denominator) * 100;
-  const roundedPence = Math.round(exactPence);
+  const wholePence = Math.floor(exactPence);
+  const fractionalPenny = exactPence - wholePence;
+  const hasFractionalPenny = fractionalPenny > 0.0001;
+  const displayPence = formatDecimal(exactPence, 2);
   const exact = Number.isInteger(exactPence);
-  const coins = moneyCoins(roundedPence);
-  const coinHtml = coins.length
+  const coins = moneyCoins(wholePence);
+  const coinCount = coins.length + (hasFractionalPenny ? 1 : 0);
+  const wholeCoinHtml = coins.length
     ? coins
         .map(
           (coin) =>
             `<span class="coin ${coinClasses[coin]}" aria-label="${coinLabels[coin]} coin">${coinLabels[coin]}</span>`,
         )
         .join("")
+    : "";
+  const fractionalCoinHtml = hasFractionalPenny
+    ? `<span class="coin coin-fraction" style="--coin-fill:${fractionalPenny * 100}%" aria-label="${formatDecimal(fractionalPenny, 2)} of a 1p coin">1p</span>`
+    : "";
+  const coinHtml = wholeCoinHtml || fractionalCoinHtml
+    ? `${wholeCoinHtml}${fractionalCoinHtml}`
     : `<span class="zero-money">0p</span>`;
-  const hiddenCoins = coins.length
-    ? coins
+  const hiddenCoins = coinCount
+    ? Array.from({ length: coinCount })
         .map(
           (_, index) =>
             `<span class="coin coin-hidden" aria-label="hidden coin ${index + 1}">?</span>`,
@@ -360,13 +370,13 @@ function renderMoney(numerator, denominator) {
       ${renderPanelTitle(
         "money",
         "Money",
-        `${exact ? "" : "About "}${roundedPence}p out of £1.`,
+        `${displayPence}p out of £1.`,
         `What is this fraction of £1?`,
       )}
-      <div class="coins" role="img" aria-label="${revealed ? `${roundedPence} pence shown using UK coins` : `${coins.length} hidden UK ${plural(coins.length, "coin")}`}">
+      <div class="coins" role="img" aria-label="${revealed ? `${displayPence} pence shown using UK coins` : `${coinCount} hidden UK ${plural(coinCount, "coin")}`}">
         ${revealed ? coinHtml : hiddenCoins}
       </div>
-      ${revealed && !exact ? `<p class="hint">The exact amount is ${exactPence.toFixed(1)}p, so the coins are rounded.</p>` : ""}
+      ${revealed && !exact ? `<p class="hint">The last coin shows ${formatDecimal(fractionalPenny, 2)} of a penny.</p>` : ""}
     </section>
   `;
 }
