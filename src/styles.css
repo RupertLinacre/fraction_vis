@@ -49,9 +49,10 @@ main {
 .intro {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: 20px;
+  gap: clamp(20px, 3vw, 34px);
   align-items: stretch;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding: clamp(12px, 2.5vw, 28px) 0 clamp(8px, 1.8vw, 20px);
 }
 
 .eyebrow {
@@ -71,13 +72,14 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: clamp(2.8rem, 9vw, 5.8rem);
+  font-size: clamp(2.2rem, 6.5vw, 4.4rem);
   line-height: 1;
   letter-spacing: 0;
 }
 
 .hero-fraction {
   display: inline-block;
+  padding: clamp(12px, 2.2vw, 22px) clamp(16px, 3vw, 32px);
 }
 
 .hero-fraction .katex {
@@ -93,8 +95,10 @@ h1 {
 
 .fraction-card {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 10px;
+  align-items: center;
   padding: 18px;
   border: 2px solid var(--ink);
   border-radius: 8px;
@@ -102,12 +106,11 @@ h1 {
   box-shadow: var(--shadow);
 }
 
-.fraction-card label {
-  display: grid;
-  gap: 7px;
+.fraction-editor-row {
+  display: contents;
 }
 
-.fraction-card span,
+.fraction-card label,
 .inline-control span {
   color: var(--muted);
   font-size: 0.84rem;
@@ -136,6 +139,7 @@ h1 {
 
 .fraction-bar {
   display: block;
+  grid-column: 2;
   height: 4px;
   width: 100%;
   border-radius: 999px;
@@ -229,89 +233,129 @@ h1 {
   transform: translateY(-1px);
 }
 
-.numberline {
-  padding: 40px 22px 64px;
+.numberline-shell {
+  overflow-x: auto;
 }
 
-.numberline-track {
-  position: relative;
-  height: 16px;
-  border: 2px solid var(--ink);
-  border-radius: 0;
-  background: white;
-}
-
-.numberline-fill {
-  height: 100%;
-  border-radius: 0;
-  background: var(--blue);
-}
-
-.numberline-tick {
-  position: absolute;
-  top: 50%;
-  width: 0;
-  transform: translateX(-50%);
-}
-
-.numberline-tick > span {
+.static-numberline {
   display: block;
-  width: 1px;
-  height: 24px;
-  background: #aab4bb;
-  transform: translateY(-50%);
+  width: 100%;
+  min-width: 680px;
+  height: auto;
 }
 
-.numberline-tick em {
-  position: absolute;
-  top: 27px;
-  left: 50%;
+.svg-axis-line {
+  stroke: var(--ink);
+  stroke-width: 2;
+  shape-rendering: crispEdges;
+}
+
+.svg-grid-line {
+  stroke: #d5dde2;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.svg-tick-line {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  shape-rendering: crispEdges;
+}
+
+.svg-rod {
+  stroke: white;
+  stroke-width: 1;
+}
+
+.fraction-rod {
+  fill: rgb(47 123 211 / 18%);
+}
+
+.fraction-rod-selected {
+  fill: var(--blue);
+}
+
+.decimal-rod {
+  fill: rgb(47 155 115 / 18%);
+}
+
+.decimal-rod-selected {
+  fill: var(--green);
+}
+
+.svg-rod-text {
+  fill: var(--muted);
+  font-size: 18px;
+  font-weight: 900;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.svg-rod-text-selected {
+  fill: white;
+}
+
+.svg-math-label {
+  display: flex;
+  height: 100%;
+  align-items: flex-start;
+  justify-content: center;
   color: var(--muted);
-  font-size: clamp(0.9rem, 2.1vw, 1.12rem);
-  font-style: normal;
-  font-weight: 800;
-  transform: translateX(-50%);
-  white-space: nowrap;
+  font-size: 2rem;
+  font-weight: 900;
+  overflow: visible;
 }
 
-.numberline-tick .katex {
+.svg-math-label .katex {
   font-size: 1em;
 }
 
-.numberline-marker {
-  position: absolute;
-  top: -42px;
-  min-width: 54px;
-  padding: 7px 9px;
+.svg-math-label-active {
+  color: var(--red);
+}
+
+.svg-math-label-active .katex {
+  color: var(--red);
+}
+
+.svg-decimal-label {
+  fill: var(--muted);
+  font-size: 18px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.svg-answer-fill {
+  opacity: 0.82;
+}
+
+.fraction-answer-fill {
+  fill: var(--blue);
+}
+
+.decimal-answer-fill {
+  fill: var(--green);
+}
+
+.svg-answer-marker {
+  stroke: var(--red);
+  stroke-width: 3;
+}
+
+.svg-answer-label {
+  display: grid;
+  min-height: 30px;
+  place-items: center;
   border: 2px solid var(--ink);
   border-radius: 8px;
   background: var(--yellow);
-  font-size: 0.9rem;
-  font-weight: 900;
-  text-align: center;
-  transform: translateX(-50%);
-}
-
-.numberline-marker .katex {
-  font-size: 0.95em;
-}
-
-.decimal-numberline {
-  padding-top: 34px;
-}
-
-.decimal-tick em {
-  font-size: clamp(0.78rem, 1.8vw, 0.95rem);
-}
-
-.decimal-fill {
-  background: var(--green);
-}
-
-.decimal-marker {
-  min-width: 68px;
-  background: var(--green-soft);
+  color: var(--ink);
   font-size: 1rem;
+  font-weight: 900;
+}
+
+.svg-answer-label .katex {
+  font-size: 0.95em;
 }
 
 .pie {
@@ -680,13 +724,8 @@ h1 {
     min-width: 68px;
   }
 
-  .numberline {
-    overflow-x: auto;
-    padding-inline: 8px;
-  }
-
-  .numberline-track {
-    min-width: 520px;
+  .static-numberline {
+    min-width: 620px;
   }
 
   .inline-control {

@@ -154,25 +154,102 @@ function setFraction(numerator, denominator) {
   render();
 }
 
-function renderNumberLine(numerator, denominator) {
-  const revealed = state.revealed.numberline;
-  const segmentPercent = 100 / denominator;
-  const markerPercent = (numerator / denominator) * 100;
-  const colouredVerb = numerator === 1 ? "is" : "are";
-  const ticks = Array.from({ length: denominator + 1 }, (_, index) => {
-    const isEndpoint = index === 0 || index === denominator;
-    const label = isEndpoint
-      ? index === 0
-        ? "0"
-        : "1"
-      : mathFraction(index, denominator);
+function numberlineX(value) {
+  const start = 56;
+  const end = 944;
+  return start + value * (end - start);
+}
+
+function renderSvgFractionLabel(x, y, label, width = 102, height = 72, extraClass = "") {
+  return `
+    <foreignObject x="${x - width / 2}" y="${y}" width="${width}" height="${height}">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="svg-math-label ${extraClass}">${label}</div>
+    </foreignObject>
+  `;
+}
+
+function renderStaticNumberline({
+  numerator,
+  denominator,
+  revealed,
+  mode,
+  markerLabel,
+}) {
+  const axisY = 126;
+  const rodY = 48;
+  const rodH = 42;
+  const markerValue = numerator / denominator;
+  const markerX = numberlineX(markerValue);
+  const chunkColor = mode === "decimal" ? "decimal" : "fraction";
+  const rods = Array.from({ length: denominator }, (_, index) => {
+    const x1 = numberlineX(index / denominator);
+    const x2 = numberlineX((index + 1) / denominator);
+    const width = Math.max(0, x2 - x1 - 1);
+    const selected = revealed && index < numerator;
     return `
-      <div class="numberline-tick" style="left:${index * segmentPercent}%">
-        <span></span>
-        <em>${label}</em>
-      </div>
+      <g>
+        <rect class="svg-rod ${chunkColor}-rod ${selected ? `${chunkColor}-rod-selected` : ""}" x="${x1}" y="${rodY}" width="${width}" height="${rodH}" rx="0"></rect>
+        ${
+          revealed
+            ? `<text class="svg-rod-text ${selected ? "svg-rod-text-selected" : ""}" x="${x1 + width / 2}" y="${rodY + rodH / 2 + 1}">${index + 1}</text>`
+            : ""
+        }
+      </g>
     `;
   }).join("");
+  const fractionTicks = Array.from({ length: denominator + 1 }, (_, index) => {
+    const x = numberlineX(index / denominator);
+    const label =
+      index === 0 ? "0" : index === denominator ? "1" : mathFraction(index, denominator);
+    const isAnswerTick = index === numerator;
+    return `
+      <g>
+        <line class="svg-grid-line" x1="${x}" x2="${x}" y1="${mode === "decimal" ? rodY + rodH : rodY}" y2="${axisY + 8}"></line>
+        <line class="svg-tick-line" x1="${x}" x2="${x}" y1="${axisY}" y2="${axisY + 8}"></line>
+        ${revealed ? renderSvgFractionLabel(x, axisY + 14, label, 102, 72, isAnswerTick ? "svg-math-label-active" : "") : ""}
+      </g>
+    `;
+  }).join("");
+  const decimalTicks = Array.from({ length: 11 }, (_, index) => {
+    const x = numberlineX(index / 10);
+    const label = index === 0 ? "0" : index === 10 ? "1" : (index / 10).toFixed(1);
+    return `
+      <g>
+        <line class="svg-grid-line" x1="${x}" x2="${x}" y1="${rodY + rodH}" y2="${axisY + 8}"></line>
+        <line class="svg-tick-line" x1="${x}" x2="${x}" y1="${axisY}" y2="${axisY + 8}"></line>
+        <text class="svg-decimal-label" x="${x}" y="${axisY + 38}">${label}</text>
+      </g>
+    `;
+  }).join("");
+  const ticks = mode === "decimal" ? decimalTicks : fractionTicks;
+
+  return `
+    <svg class="static-numberline ${mode}-static-numberline" viewBox="0 0 1000 230" role="img">
+      <g>
+        ${rods}
+        <line class="svg-axis-line" x1="${numberlineX(0)}" x2="${numberlineX(1)}" y1="${axisY}" y2="${axisY}"></line>
+        ${ticks}
+        ${
+          revealed
+            ? mode === "decimal"
+              ? `
+                <rect class="svg-answer-fill decimal-answer-fill" x="${numberlineX(0)}" y="${axisY - 12}" width="${markerX - numberlineX(0)}" height="24"></rect>
+                <line class="svg-answer-marker" x1="${markerX}" x2="${markerX}" y1="${rodY - 12}" y2="${axisY + 12}"></line>
+                <foreignObject x="${markerX - 58}" y="${rodY - 44}" width="116" height="38">
+                  <div xmlns="http://www.w3.org/1999/xhtml" class="svg-answer-label">${markerLabel}</div>
+                </foreignObject>
+              `
+              : `<line class="svg-answer-marker" x1="${markerX}" x2="${markerX}" y1="${rodY - 12}" y2="${axisY + 12}"></line>`
+            : ""
+        }
+      </g>
+    </svg>
+  `;
+}
+
+function renderNumberLine(numerator, denominator) {
+  const revealed = state.revealed.numberline;
+  const colouredVerb = numerator === 1 ? "is" : "are";
 
   return `
     <section class="panel wide" aria-labelledby="numberline-title">
@@ -182,16 +259,14 @@ function renderNumberLine(numerator, denominator) {
         `${numerator} of ${denominator} equal ${plural(denominator, "step")} ${colouredVerb} coloured.`,
         `Split into ${denominator} equal ${plural(denominator, "step")}.`,
       )}
-      <div class="numberline" role="img" aria-label="Number line from 0 to 1 split into ${denominator} ${plural(denominator, "section")}${revealed ? ` with ${numerator} highlighted` : ""}">
-        <div class="numberline-track">
-          <div class="numberline-fill" style="width:${revealed ? markerPercent : 0}%"></div>
-          ${ticks}
-          ${
-            revealed
-              ? `<div class="numberline-marker" style="left:${markerPercent}%">${mathFraction(numerator, denominator)}</div>`
-              : ""
-          }
-        </div>
+      <div class="numberline-shell" aria-label="Number line from 0 to 1 split into ${denominator} ${plural(denominator, "section")}${revealed ? ` with ${numerator} highlighted` : ""}">
+        ${renderStaticNumberline({
+          numerator,
+          denominator,
+          revealed,
+          mode: "fraction",
+          markerLabel: mathFraction(numerator, denominator),
+        })}
       </div>
     </section>
   `;
@@ -200,18 +275,7 @@ function renderNumberLine(numerator, denominator) {
 function renderDecimalNumberLine(numerator, denominator) {
   const revealed = state.revealed.decimalNumberline;
   const value = numerator / denominator;
-  const markerPercent = value * 100;
   const decimalText = formatDecimal(value, 3);
-  const ticks = Array.from({ length: 11 }, (_, index) => {
-    const tickValue = index / 10;
-    const label = index === 0 ? "0" : index === 10 ? "1" : tickValue.toFixed(1);
-    return `
-      <div class="numberline-tick decimal-tick" style="left:${index * 10}%">
-        <span></span>
-        <em>${label}</em>
-      </div>
-    `;
-  }).join("");
 
   return `
     <section class="panel wide" aria-labelledby="decimalNumberline-title">
@@ -221,16 +285,14 @@ function renderDecimalNumberLine(numerator, denominator) {
         `${numerator}/${denominator} is ${decimalText} as a decimal.`,
         "Where does this fraction sit between 0 and 1 as a decimal?",
       )}
-      <div class="numberline decimal-numberline" role="img" aria-label="Decimal numberline from 0 to 1${revealed ? ` filled to ${decimalText}` : ""}">
-        <div class="numberline-track">
-          <div class="numberline-fill decimal-fill" style="width:${revealed ? markerPercent : 0}%"></div>
-          ${ticks}
-          ${
-            revealed
-              ? `<div class="numberline-marker decimal-marker" style="left:${markerPercent}%">${decimalText}</div>`
-              : ""
-          }
-        </div>
+      <div class="numberline-shell" aria-label="Decimal numberline from 0 to 1 split into ${denominator} chunks${revealed ? ` and filled to ${decimalText}` : ""}">
+        ${renderStaticNumberline({
+          numerator,
+          denominator,
+          revealed,
+          mode: "decimal",
+          markerLabel: decimalText,
+        })}
       </div>
     </section>
   `;
@@ -523,15 +585,15 @@ function render() {
           </div>
 
           <form class="fraction-card" aria-label="Choose a fraction">
-            <label>
-              <span>Numerator</span>
+            <div class="fraction-editor-row">
+              <label for="numerator">Numerator</label>
               <input id="numerator" type="number" min="0" max="${denominator}" value="${numerator}" inputmode="numeric" />
-            </label>
+            </div>
             <span class="fraction-bar" aria-hidden="true"></span>
-            <label>
-              <span>Denominator</span>
+            <div class="fraction-editor-row">
+              <label for="denominator">Denominator</label>
               <input id="denominator" type="number" min="1" max="24" value="${denominator}" inputmode="numeric" />
-            </label>
+            </div>
           </form>
         </div>
 
