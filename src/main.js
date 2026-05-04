@@ -55,6 +55,7 @@ const plural = (count, singular, pluralForm = `${singular}s`) =>
   count === 1 ? singular : pluralForm;
 const formatDecimal = (value, maxDigits = 1) =>
   Number.isInteger(value) ? String(value) : value.toFixed(maxDigits);
+const assetPath = (path) => `${import.meta.env.BASE_URL}${path}`;
 
 function normalizeState() {
   state.denominator = clamp(Math.trunc(state.denominator) || 1, 1, 24);
@@ -121,7 +122,7 @@ function moneyCoins(pence) {
 function renderCoinImage(coin) {
   return `
     <span class="coin coin-image" aria-label="${coinLabels[coin]} coin">
-      <img src="/coin_images/${coinImageFiles[coin]}" alt="" aria-hidden="true" />
+      <img src="${assetPath(`coin_images/${coinImageFiles[coin]}`)}" alt="" aria-hidden="true" />
     </span>
   `;
 }
@@ -130,8 +131,8 @@ function renderFractionalPenny(fractionalPenny) {
   const label = `${formatDecimal(fractionalPenny, 2)} of a 1p coin`;
   return `
     <span class="coin coin-image coin-fraction" style="--coin-fill:${fractionalPenny * 100}%" aria-label="${label}">
-      <img class="coin-fraction-ghost" src="/coin_images/1p.png" alt="" aria-hidden="true" />
-      <img class="coin-fraction-fill" src="/coin_images/1p.png" alt="" aria-hidden="true" />
+      <img class="coin-fraction-ghost" src="${assetPath("coin_images/1p.png")}" alt="" aria-hidden="true" />
+      <img class="coin-fraction-fill" src="${assetPath("coin_images/1p.png")}" alt="" aria-hidden="true" />
     </span>
   `;
 }
