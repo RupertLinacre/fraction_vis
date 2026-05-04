@@ -132,6 +132,9 @@ h1 {
 .fraction-card input:focus,
 .inline-control input:focus,
 .quick-picks button:focus,
+.reveal-all-toggle:focus,
+.settings-button:focus,
+.settings-toggle input:focus-visible + span,
 .reveal-toggle:focus {
   outline: 3px solid var(--yellow);
   outline-offset: 2px;
@@ -146,11 +149,20 @@ h1 {
   background: var(--ink);
 }
 
+.practice-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
 .quick-picks {
+  flex: 1 1 460px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 18px;
 }
 
 .quick-picks button {
@@ -171,6 +183,78 @@ h1 {
 
 .quick-picks .katex {
   font-size: 1.05rem;
+}
+
+.reveal-all-toggle {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--blue);
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.settings-wrap {
+  position: relative;
+}
+
+.settings-button {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.settings-button:hover {
+  background: var(--paper-strong);
+  transform: translateY(-1px);
+}
+
+.settings-panel {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: min(280px, calc(100vw - 32px));
+  gap: 6px;
+  padding: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.settings-toggle {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.settings-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+}
+
+.reveal-all-toggle[aria-pressed="true"] {
+  background: white;
+  color: var(--ink);
+}
+
+.reveal-all-toggle:hover {
+  transform: translateY(-1px);
 }
 
 .panels {
@@ -318,11 +402,14 @@ h1 {
   color: var(--red);
 }
 
-.svg-decimal-label {
-  fill: var(--muted);
-  font-size: 18px;
-  font-weight: 900;
-  text-anchor: middle;
+.svg-decimal-math-label {
+  font-size: 1.25rem;
+  font-weight: 400;
+}
+
+.svg-decimal-math-label .katex {
+  font-size: 1em;
+  font-weight: 400;
 }
 
 .svg-answer-fill {
@@ -362,6 +449,13 @@ h1 {
   display: block;
   width: min(100%, 300px);
   margin: 0 auto;
+}
+
+.pie-set {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 18px;
+  align-items: center;
 }
 
 .pie path,
@@ -682,10 +776,24 @@ h1 {
   text-align: right;
 }
 
-.apples {
+.apples,
+.apple-group {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(46px, 1fr));
   gap: 10px;
+}
+
+.apple-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.apple-group {
+  grid-template-columns: repeat(var(--apple-columns), 38px);
+  overflow-x: auto;
+  padding: 10px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-strong);
 }
 
 .apple {
@@ -696,7 +804,7 @@ h1 {
   border-radius: 8px;
   background: white;
   filter: grayscale(1);
-  font-size: clamp(2rem, 8vw, 3.3rem);
+  font-size: 1.55rem;
   opacity: 0.38;
 }
 

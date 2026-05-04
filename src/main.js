@@ -7,6 +7,7 @@ const state = {
   denominator: 7,
   gridMultiple: 4,
   equivalenceMultiple: 2,
+  settingsOpen: false,
   revealed: {
     numberline: false,
     decimalNumberline: false,
@@ -18,9 +19,31 @@ const state = {
     pictogram: false,
     percentage: false,
   },
+  enabledPanels: {
+    numberline: true,
+    decimalNumberline: true,
+    pie: true,
+    equivalence: true,
+    money: true,
+    hundredGrid: true,
+    customGrid: true,
+    pictogram: true,
+    percentage: true,
+  },
 };
 
 const panelIds = Object.keys(state.revealed);
+const panelLabels = {
+  numberline: "Fraction numberline",
+  decimalNumberline: "Decimal numberline",
+  pie: "Pie",
+  money: "Money",
+  hundredGrid: "100 square",
+  customGrid: "Denominator grid",
+  pictogram: "Apples",
+  equivalence: "Equivalent fractions",
+  percentage: "Percentage",
+};
 
 const coinValues = [100, 50, 20, 10, 5, 2, 1];
 const coinLabels = {
@@ -59,9 +82,12 @@ const assetPath = (path) => `${import.meta.env.BASE_URL}${path}`;
 
 function normalizeState() {
   state.denominator = clamp(Math.trunc(state.denominator) || 1, 1, 24);
-  state.numerator = clamp(Math.trunc(state.numerator) || 0, 0, state.denominator);
+  state.numerator = Math.max(Math.trunc(state.numerator) || 0, 0);
   state.gridMultiple = clamp(Math.trunc(state.gridMultiple) || 1, 1, 12);
   state.equivalenceMultiple = clamp(Math.trunc(state.equivalenceMultiple) || 2, 2, 8);
+  panelIds.forEach((panelId) => {
+    state.enabledPanels[panelId] = state.enabledPanels[panelId] !== false;
+  });
 }
 
 function mathMarkup(tex) {
@@ -80,10 +106,84 @@ function mathEquivalence(numerator, denominator, multiple) {
   );
 }
 
+function fractionValue(numerator, denominator) {
+  return numerator / denominator;
+}
+
+function wholeScaleFor(numerator, denominator) {
+  return Math.max(1, Math.ceil(fractionValue(numerator, denominator)));
+}
+
+function moneyText(pence) {
+  const pounds = pence / 100;
+  return pounds >= 1 ? `£${formatDecimal(pounds, 2)}` : `${formatDecimal(pence, 2)}p`;
+}
+
 function hideAnswers() {
   panelIds.forEach((id) => {
     state.revealed[id] = false;
   });
+}
+
+function availablePanelIds(numerator, denominator) {
+  const visible = ["numberline", "decimalNumberline", "pie", "money", "pictogram", "percentage"];
+  if (numerator <= denominator) {
+    visible.splice(4, 0, "hundredGrid", "customGrid");
+    visible.splice(7, 0, "equivalence");
+  }
+  return visible;
+}
+
+function visiblePanelIds(numerator, denominator) {
+  return availablePanelIds(numerator, denominator).filter((panelId) => state.enabledPanels[panelId]);
+}
+
+function applyUrlSettings() {
+  const params = new URLSearchParams(window.location.search);
+  const numerator = Number(params.get("n"));
+  const denominator = Number(params.get("d"));
+  const gridMultiple = Number(params.get("gm"));
+  const equivalenceMultiple = Number(params.get("em"));
+  const panels = params.get("panels");
+
+  if (Number.isFinite(numerator)) {
+    state.numerator = numerator;
+  }
+  if (Number.isFinite(denominator)) {
+    state.denominator = denominator;
+  }
+  if (Number.isFinite(gridMultiple)) {
+    state.gridMultiple = gridMultiple;
+  }
+  if (Number.isFinite(equivalenceMultiple)) {
+    state.equivalenceMultiple = equivalenceMultiple;
+  }
+  if (panels !== null) {
+    const enabled = new Set(
+      panels
+        .split(",")
+        .map((panelId) => panelId.trim())
+        .filter((panelId) => panelIds.includes(panelId)),
+    );
+    panelIds.forEach((panelId) => {
+      state.enabledPanels[panelId] = enabled.has(panelId);
+    });
+  }
+
+  normalizeState();
+}
+
+function syncUrlSettings() {
+  const params = new URLSearchParams();
+  params.set("n", String(state.numerator));
+  params.set("d", String(state.denominator));
+  params.set("gm", String(state.gridMultiple));
+  params.set("em", String(state.equivalenceMultiple));
+  params.set(
+    "panels",
+    panelIds.filter((panelId) => state.enabledPanels[panelId]).join(","),
+  );
+  window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
 }
 
 function renderPanelTitle(panelId, title, revealedText, hiddenText = "Work it out, then reveal it.") {
@@ -103,6 +203,41 @@ function renderPanelTitle(panelId, title, revealedText, hiddenText = "Work it ou
       >
         ${revealed ? "Hide" : "Show"}
       </button>
+    </div>
+  `;
+}
+
+function renderSettingsPanel() {
+  const toggles = panelIds
+    .map(
+      (panelId) => `
+        <label class="settings-toggle">
+          <input
+            type="checkbox"
+            data-panel-setting="${panelId}"
+            ${state.enabledPanels[panelId] ? "checked" : ""}
+          />
+          <span>${panelLabels[panelId]}</span>
+        </label>
+      `,
+    )
+    .join("");
+
+  return `
+    <div class="settings-wrap">
+      <button
+        class="settings-button"
+        type="button"
+        data-settings-toggle
+        aria-expanded="${state.settingsOpen}"
+      >
+        Settings
+      </button>
+      ${
+        state.settingsOpen
+          ? `<div class="settings-panel" role="group" aria-label="Panel settings">${toggles}</div>`
+          : ""
+      }
     </div>
   `;
 }
@@ -170,13 +305,14 @@ function setFraction(numerator, denominator) {
   state.denominator = denominator;
   normalizeState();
   hideAnswers();
+  syncUrlSettings();
   render();
 }
 
-function numberlineX(value) {
+function numberlineX(value, maxValue = 1) {
   const start = 56;
   const end = 944;
-  return start + value * (end - start);
+  return start + (value / maxValue) * (end - start);
 }
 
 function renderSvgFractionLabel(x, y, label, width = 102, height = 72, extraClass = "") {
@@ -197,12 +333,15 @@ function renderStaticNumberline({
   const axisY = 126;
   const rodY = 48;
   const rodH = 42;
-  const markerValue = numerator / denominator;
-  const markerX = numberlineX(markerValue);
+  const markerValue = fractionValue(numerator, denominator);
+  const maxValue = wholeScaleFor(numerator, denominator);
+  const totalChunks = denominator * maxValue;
+  const minWidth = Math.max(680, totalChunks * 78);
+  const markerX = numberlineX(markerValue, maxValue);
   const chunkColor = mode === "decimal" ? "decimal" : "fraction";
-  const rods = Array.from({ length: denominator }, (_, index) => {
-    const x1 = numberlineX(index / denominator);
-    const x2 = numberlineX((index + 1) / denominator);
+  const rods = Array.from({ length: totalChunks }, (_, index) => {
+    const x1 = numberlineX(index / denominator, maxValue);
+    const x2 = numberlineX((index + 1) / denominator, maxValue);
     const width = Math.max(0, x2 - x1 - 1);
     const selected = revealed && index < numerator;
     return `
@@ -216,10 +355,14 @@ function renderStaticNumberline({
       </g>
     `;
   }).join("");
-  const fractionTicks = Array.from({ length: denominator + 1 }, (_, index) => {
-    const x = numberlineX(index / denominator);
+  const fractionTicks = Array.from({ length: totalChunks + 1 }, (_, index) => {
+    const x = numberlineX(index / denominator, maxValue);
     const label =
-      index === 0 ? "0" : index === denominator ? "1" : mathFraction(index, denominator);
+      index === 0
+        ? mathMarkup("0")
+        : index % denominator === 0
+          ? mathMarkup(String(index / denominator))
+          : mathFraction(index, denominator);
     const isAnswerTick = index === numerator;
     return `
       <g>
@@ -229,30 +372,32 @@ function renderStaticNumberline({
       </g>
     `;
   }).join("");
-  const decimalTicks = Array.from({ length: 11 }, (_, index) => {
-    const x = numberlineX(index / 10);
-    const label = index === 0 ? "0" : index === 10 ? "1" : (index / 10).toFixed(1);
+  const decimalTickCount = maxValue * 10;
+  const decimalTicks = Array.from({ length: decimalTickCount + 1 }, (_, index) => {
+    const value = index / 10;
+    const x = numberlineX(value, maxValue);
+    const label = Number.isInteger(value) ? String(value) : value.toFixed(1);
     return `
       <g>
         <line class="svg-grid-line" x1="${x}" x2="${x}" y1="${rodY + rodH}" y2="${axisY + 8}"></line>
         <line class="svg-tick-line" x1="${x}" x2="${x}" y1="${axisY}" y2="${axisY + 8}"></line>
-        <text class="svg-decimal-label" x="${x}" y="${axisY + 38}">${label}</text>
+        ${renderSvgFractionLabel(x, axisY + 14, mathMarkup(label), 76, 72, "svg-decimal-math-label")}
       </g>
     `;
   }).join("");
   const ticks = mode === "decimal" ? decimalTicks : fractionTicks;
 
   return `
-    <svg class="static-numberline ${mode}-static-numberline" viewBox="0 0 1000 230" role="img">
+    <svg class="static-numberline ${mode}-static-numberline" style="min-width:${minWidth}px" viewBox="0 0 1000 230" role="img">
       <g>
         ${rods}
-        <line class="svg-axis-line" x1="${numberlineX(0)}" x2="${numberlineX(1)}" y1="${axisY}" y2="${axisY}"></line>
+        <line class="svg-axis-line" x1="${numberlineX(0, maxValue)}" x2="${numberlineX(maxValue, maxValue)}" y1="${axisY}" y2="${axisY}"></line>
         ${ticks}
         ${
           revealed
             ? mode === "decimal"
               ? `
-                <rect class="svg-answer-fill decimal-answer-fill" x="${numberlineX(0)}" y="${axisY - 12}" width="${markerX - numberlineX(0)}" height="24"></rect>
+                <rect class="svg-answer-fill decimal-answer-fill" x="${numberlineX(0, maxValue)}" y="${axisY - 12}" width="${markerX - numberlineX(0, maxValue)}" height="24"></rect>
                 <line class="svg-answer-marker" x1="${markerX}" x2="${markerX}" y1="${rodY - 12}" y2="${axisY + 12}"></line>
                 <foreignObject x="${markerX - 58}" y="${rodY - 44}" width="116" height="38">
                   <div xmlns="http://www.w3.org/1999/xhtml" class="svg-answer-label">${markerLabel}</div>
@@ -269,6 +414,7 @@ function renderStaticNumberline({
 function renderNumberLine(numerator, denominator) {
   const revealed = state.revealed.numberline;
   const colouredVerb = numerator === 1 ? "is" : "are";
+  const maxValue = wholeScaleFor(numerator, denominator);
 
   return `
     <section class="panel wide" aria-labelledby="numberline-title">
@@ -276,9 +422,9 @@ function renderNumberLine(numerator, denominator) {
         "numberline",
         "Fraction numberline",
         `${numerator} of ${denominator} equal ${plural(denominator, "step")} ${colouredVerb} coloured.`,
-        `Split into ${denominator} equal ${plural(denominator, "step")}.`,
+        `Split each whole into ${denominator} equal ${plural(denominator, "step")}.`,
       )}
-      <div class="numberline-shell" aria-label="Number line from 0 to 1 split into ${denominator} ${plural(denominator, "section")}${revealed ? ` with ${numerator} highlighted` : ""}">
+      <div class="numberline-shell" aria-label="Number line from 0 to ${maxValue} split into ${denominator} ${plural(denominator, "section")} per whole${revealed ? ` with ${numerator} highlighted` : ""}">
         ${renderStaticNumberline({
           numerator,
           denominator,
@@ -293,7 +439,8 @@ function renderNumberLine(numerator, denominator) {
 
 function renderDecimalNumberLine(numerator, denominator) {
   const revealed = state.revealed.decimalNumberline;
-  const value = numerator / denominator;
+  const value = fractionValue(numerator, denominator);
+  const maxValue = wholeScaleFor(numerator, denominator);
   const decimalText = formatDecimal(value, 3);
 
   return `
@@ -302,9 +449,9 @@ function renderDecimalNumberLine(numerator, denominator) {
         "decimalNumberline",
         "Decimal numberline",
         `${numerator}/${denominator} is ${decimalText} as a decimal.`,
-        "Where does this fraction sit between 0 and 1 as a decimal?",
+        `Where does this fraction sit between 0 and ${maxValue} as a decimal?`,
       )}
-      <div class="numberline-shell" aria-label="Decimal numberline from 0 to 1 split into ${denominator} chunks${revealed ? ` and filled to ${decimalText}` : ""}">
+      <div class="numberline-shell" aria-label="Decimal numberline from 0 to ${maxValue} split into ${denominator} chunks per whole${revealed ? ` and filled to ${decimalText}` : ""}">
         ${renderStaticNumberline({
           numerator,
           denominator,
@@ -317,28 +464,42 @@ function renderDecimalNumberLine(numerator, denominator) {
   `;
 }
 
-function renderPie(numerator, denominator) {
-  const revealed = state.revealed.pie;
+function renderPieSvg(denominator, selectedSlices, revealed) {
   const slices =
     denominator === 1
-      ? `<circle cx="100" cy="100" r="92" class="${revealed && numerator === 1 ? "pie-selected" : "pie-empty"}"></circle>`
+      ? `<circle cx="100" cy="100" r="92" class="${revealed && selectedSlices > 0 ? "pie-selected" : "pie-empty"}"></circle>`
       : Array.from({ length: denominator }, (_, index) => {
-          const selected = revealed && index < numerator;
+          const selected = revealed && index < selectedSlices;
           return `<path d="${wedgePath(index, denominator)}" class="${selected ? "pie-selected" : "pie-empty"}"></path>`;
         }).join("");
+
+  return `
+    <svg class="pie" viewBox="0 0 200 200" role="img">
+      ${slices}
+      <circle cx="100" cy="100" r="92" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
+    </svg>
+  `;
+}
+
+function renderPie(numerator, denominator) {
+  const revealed = state.revealed.pie;
+  const pieCount = wholeScaleFor(numerator, denominator);
+  const pies = Array.from({ length: pieCount }, (_, index) => {
+    const selectedSlices = clamp(numerator - index * denominator, 0, denominator);
+    return renderPieSvg(denominator, selectedSlices, revealed);
+  }).join("");
 
   return `
     <section class="panel" aria-labelledby="pie-title">
       ${renderPanelTitle(
         "pie",
         "Pie",
-        `${numerator} out of ${denominator} ${plural(denominator, "slice")}.`,
-        `${denominator} equal ${plural(denominator, "slice")}.`,
+        `${numerator} out of ${denominator} ${plural(denominator, "slice")} shown across ${pieCount} ${plural(pieCount, "pie")}.`,
+        `${pieCount} ${plural(pieCount, "pie")} split into ${denominator} equal ${plural(denominator, "slice")}.`,
       )}
-      <svg class="pie" viewBox="0 0 200 200" role="img" aria-label="Circle split into ${denominator} ${plural(denominator, "slice")}${revealed ? ` with ${numerator} shaded` : ""}">
-        ${slices}
-        <circle cx="100" cy="100" r="92" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
-      </svg>
+      <div class="pie-set" role="img" aria-label="${pieCount} ${plural(pieCount, "pie")} split into ${denominator} ${plural(denominator, "slice")}${revealed ? ` with ${numerator} shaded slices` : ""}">
+        ${pies}
+      </div>
     </section>
   `;
 }
@@ -415,11 +576,12 @@ function renderEquivalence(numerator, denominator) {
 
 function renderMoney(numerator, denominator) {
   const revealed = state.revealed.money;
-  const exactPence = (numerator / denominator) * 100;
+  const exactPence = fractionValue(numerator, denominator) * 100;
   const wholePence = Math.floor(exactPence);
   const fractionalPenny = exactPence - wholePence;
   const hasFractionalPenny = fractionalPenny > 0.0001;
   const displayPence = formatDecimal(exactPence, 2);
+  const displayMoney = moneyText(exactPence);
   const exact = Number.isInteger(exactPence);
   const coins = moneyCoins(wholePence);
   const coinCount = coins.length + (hasFractionalPenny ? 1 : 0);
@@ -450,7 +612,7 @@ function renderMoney(numerator, denominator) {
       ${renderPanelTitle(
         "money",
         "Money",
-        `${displayPence}p out of £1.`,
+        `${displayMoney}, or ${displayPence}p, out of £1.`,
         `What is this fraction of £1?`,
       )}
       <div class="coins" role="img" aria-label="${revealed ? `${displayPence} pence shown using UK coins` : `${coinCount} hidden UK ${plural(coinCount, "coin")}`}">
@@ -524,21 +686,27 @@ function renderCustomGrid(numerator, denominator) {
 
 function renderPictogram(numerator, denominator) {
   const revealed = state.revealed.pictogram;
-  const apples = Array.from({ length: denominator }, (_, index) => {
-    const selected = revealed && index < numerator;
-    return `<span class="apple ${selected ? "selected" : ""}" aria-label="${selected ? "shaded apple" : "unshaded apple"}">🍎</span>`;
+  const groupCount = wholeScaleFor(numerator, denominator);
+  const groups = Array.from({ length: groupCount }, (_, groupIndex) => {
+    const apples = Array.from({ length: denominator }, (_, appleIndex) => {
+      const globalIndex = groupIndex * denominator + appleIndex;
+      const selected = revealed && globalIndex < numerator;
+      return `<span class="apple ${selected ? "selected" : ""}" aria-label="${selected ? "shaded apple" : "unshaded apple"}">🍎</span>`;
+    }).join("");
+    return `<div class="apple-group" style="--apple-columns:${denominator}">${apples}</div>`;
   }).join("");
+  const totalApples = groupCount * denominator;
 
   return `
     <section class="panel wide" aria-labelledby="pictogram-title">
       ${renderPanelTitle(
         "pictogram",
         "Apples",
-        `${numerator} red ${plural(numerator, "apple")} from a group of ${denominator}.`,
-        `${denominator} ${plural(denominator, "apple")} ready to shade.`,
+        `${numerator} red ${plural(numerator, "apple")} from ${groupCount} ${plural(groupCount, "group")} of ${denominator}.`,
+        `${groupCount} ${plural(groupCount, "group")} of ${denominator} ${plural(denominator, "apple")} ready to shade.`,
       )}
-      <div class="apples" role="img" aria-label="${denominator} ${plural(denominator, "apple")}${revealed ? ` with ${numerator} shaded` : " with none shaded"}">
-        ${apples}
+      <div class="apple-groups" role="img" aria-label="${totalApples} ${plural(totalApples, "apple")} in ${groupCount} ${plural(groupCount, "group")}${revealed ? ` with ${numerator} shaded` : " with none shaded"}">
+        ${groups}
       </div>
     </section>
   `;
@@ -546,14 +714,24 @@ function renderPictogram(numerator, denominator) {
 
 function renderPercentage(numerator, denominator) {
   const revealed = state.revealed.percentage;
-  const exactPercent = (numerator / denominator) * 100;
+  const exactPercent = fractionValue(numerator, denominator) * 100;
+  const maxPercent = wholeScaleFor(numerator, denominator) * 100;
   const roundedPercent = Math.round(exactPercent);
   const exact = Number.isInteger(exactPercent);
   const displayPercent = formatDecimal(exactPercent);
-  const markers = [0, 25, 50, 75, 100]
-    .map((value) => `<span style="left:${value}%">${value}%</span>`)
+  const markerStep = maxPercent <= 100 ? 25 : maxPercent <= 200 ? 50 : 100;
+  const markerValues = Array.from(
+    { length: Math.floor(maxPercent / markerStep) + 1 },
+    (_, index) => index * markerStep,
+  );
+  if (markerValues[markerValues.length - 1] !== maxPercent) {
+    markerValues.push(maxPercent);
+  }
+  const markers = markerValues
+    .map((value) => `<span style="left:${(value / maxPercent) * 100}%">${value}%</span>`)
     .join("");
-  const markerPosition = clamp(exactPercent, 0, 100);
+  const fillWidth = clamp((exactPercent / maxPercent) * 100, 0, 100);
+  const markerPosition = clamp(fillWidth, 0, 100);
   const markerClass =
     markerPosition === 0 ? " at-start" : markerPosition === 100 ? " at-end" : "";
 
@@ -565,9 +743,9 @@ function renderPercentage(numerator, denominator) {
         `${displayPercent}% means ${displayPercent} out of 100.`,
         "What percentage of the bar should be shaded?",
       )}
-      <div class="percentage-vis" role="img" aria-label="${revealed ? `${displayPercent} percent shaded` : "Percentage bar with no answer shaded"}">
+      <div class="percentage-vis" role="img" aria-label="${revealed ? `${displayPercent} percent shaded on a 0 to ${maxPercent} percent bar` : `Percentage bar from 0 to ${maxPercent} percent with no answer shaded`}">
         <div class="percentage-track">
-          <div class="percentage-fill" style="width:${revealed ? exactPercent : 0}%"></div>
+          <div class="percentage-fill" style="width:${revealed ? fillWidth : 0}%"></div>
           <div class="percentage-markers">${markers}</div>
           ${
             revealed
@@ -588,7 +766,11 @@ function renderPercentage(numerator, denominator) {
 
 function render() {
   normalizeState();
+  syncUrlSettings();
   const { numerator, denominator } = state;
+  const visiblePanels = visiblePanelIds(numerator, denominator);
+  const allVisiblePanelsRevealed =
+    visiblePanels.length > 0 && visiblePanels.every((panelId) => state.revealed[panelId]);
   const app = document.querySelector("#app");
 
   app.innerHTML = `
@@ -605,7 +787,7 @@ function render() {
           <form class="fraction-card" aria-label="Choose a fraction">
             <div class="fraction-editor-row">
               <label for="numerator">Numerator</label>
-              <input id="numerator" type="number" min="0" max="${denominator}" value="${numerator}" inputmode="numeric" />
+              <input id="numerator" type="number" min="0" value="${numerator}" inputmode="numeric" />
             </div>
             <span class="fraction-bar" aria-hidden="true"></span>
             <div class="fraction-editor-row">
@@ -615,24 +797,36 @@ function render() {
           </form>
         </div>
 
-        <div class="quick-picks" aria-label="Example fractions">
-          <button type="button" data-fraction="1/2" aria-label="one half">${mathFraction(1, 2)}</button>
-          <button type="button" data-fraction="1/3" aria-label="one third">${mathFraction(1, 3)}</button>
-          <button type="button" data-fraction="1/4" aria-label="one quarter">${mathFraction(1, 4)}</button>
-          <button type="button" data-fraction="3/7" aria-label="three sevenths">${mathFraction(3, 7)}</button>
-          <button type="button" data-fraction="2/5" aria-label="two fifths">${mathFraction(2, 5)}</button>
+        <div class="practice-bar">
+          <div class="quick-picks" aria-label="Example fractions">
+            <button type="button" data-fraction="1/2" aria-label="one half">${mathFraction(1, 2)}</button>
+            <button type="button" data-fraction="1/3" aria-label="one third">${mathFraction(1, 3)}</button>
+            <button type="button" data-fraction="1/4" aria-label="one quarter">${mathFraction(1, 4)}</button>
+            <button type="button" data-fraction="3/7" aria-label="three sevenths">${mathFraction(3, 7)}</button>
+            <button type="button" data-fraction="2/5" aria-label="two fifths">${mathFraction(2, 5)}</button>
+            <button type="button" data-fraction="5/4" aria-label="five quarters">${mathFraction(5, 4)}</button>
+          </div>
+          <button
+            class="reveal-all-toggle"
+            type="button"
+            data-toggle-all
+            aria-pressed="${allVisiblePanelsRevealed}"
+          >
+            ${allVisiblePanelsRevealed ? "Hide all" : "Reveal all"}
+          </button>
+          ${renderSettingsPanel()}
         </div>
 
         <div class="panels">
-          ${renderNumberLine(numerator, denominator)}
-          ${renderDecimalNumberLine(numerator, denominator)}
-          ${renderPie(numerator, denominator)}
-          ${renderMoney(numerator, denominator)}
-          ${renderHundredGrid(numerator, denominator)}
-          ${renderCustomGrid(numerator, denominator)}
-          ${renderPictogram(numerator, denominator)}
-          ${renderEquivalence(numerator, denominator)}
-          ${renderPercentage(numerator, denominator)}
+          ${visiblePanels.includes("numberline") ? renderNumberLine(numerator, denominator) : ""}
+          ${visiblePanels.includes("decimalNumberline") ? renderDecimalNumberLine(numerator, denominator) : ""}
+          ${visiblePanels.includes("pie") ? renderPie(numerator, denominator) : ""}
+          ${visiblePanels.includes("money") ? renderMoney(numerator, denominator) : ""}
+          ${visiblePanels.includes("hundredGrid") ? renderHundredGrid(numerator, denominator) : ""}
+          ${visiblePanels.includes("customGrid") ? renderCustomGrid(numerator, denominator) : ""}
+          ${visiblePanels.includes("pictogram") ? renderPictogram(numerator, denominator) : ""}
+          ${visiblePanels.includes("equivalence") ? renderEquivalence(numerator, denominator) : ""}
+          ${visiblePanels.includes("percentage") ? renderPercentage(numerator, denominator) : ""}
         </div>
       </section>
     </main>
@@ -642,6 +836,7 @@ function render() {
     state.numerator = Number(event.target.value);
     normalizeState();
     hideAnswers();
+    syncUrlSettings();
     render();
   });
 
@@ -649,20 +844,23 @@ function render() {
     state.denominator = Number(event.target.value);
     normalizeState();
     hideAnswers();
+    syncUrlSettings();
     render();
   });
 
-  document.querySelector("#gridMultiple").addEventListener("input", (event) => {
+  document.querySelector("#gridMultiple")?.addEventListener("input", (event) => {
     state.gridMultiple = Number(event.target.value);
     normalizeState();
     state.revealed.customGrid = false;
+    syncUrlSettings();
     render();
   });
 
-  document.querySelector("#equivalenceMultiple").addEventListener("input", (event) => {
+  document.querySelector("#equivalenceMultiple")?.addEventListener("input", (event) => {
     state.equivalenceMultiple = Number(event.target.value);
     normalizeState();
     state.revealed.equivalence = false;
+    syncUrlSettings();
     render();
   });
 
@@ -670,6 +868,34 @@ function render() {
     button.addEventListener("click", () => {
       const panelId = button.dataset.togglePanel;
       state.revealed[panelId] = !state.revealed[panelId];
+      render();
+    });
+  });
+
+  document.querySelector("[data-toggle-all]").addEventListener("click", () => {
+    const nextRevealed = !visiblePanelIds(state.numerator, state.denominator).every(
+      (panelId) => state.revealed[panelId],
+    );
+    panelIds.forEach((panelId) => {
+      state.revealed[panelId] = false;
+    });
+    visiblePanelIds(state.numerator, state.denominator).forEach((panelId) => {
+      state.revealed[panelId] = nextRevealed;
+    });
+    render();
+  });
+
+  document.querySelector("[data-settings-toggle]").addEventListener("click", () => {
+    state.settingsOpen = !state.settingsOpen;
+    render();
+  });
+
+  document.querySelectorAll("[data-panel-setting]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const panelId = input.dataset.panelSetting;
+      state.enabledPanels[panelId] = input.checked;
+      state.revealed[panelId] = false;
+      syncUrlSettings();
       render();
     });
   });
@@ -682,4 +908,5 @@ function render() {
   });
 }
 
+applyUrlSettings();
 render();
