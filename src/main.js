@@ -33,14 +33,14 @@ const coinLabels = {
   1: "1p",
 };
 
-const coinClasses = {
-  100: "coin-pound",
-  50: "coin-silver",
-  20: "coin-silver",
-  10: "coin-silver",
-  5: "coin-silver",
-  2: "coin-copper",
-  1: "coin-copper",
+const coinImageFiles = {
+  100: "1-pound.png",
+  50: "50p.png",
+  20: "20p.png",
+  10: "10p.png",
+  5: "5p.png",
+  2: "2p.png",
+  1: "1p.png",
 };
 
 const equivalenceFillClasses = [
@@ -116,6 +116,24 @@ function moneyCoins(pence) {
     }
   }
   return coins;
+}
+
+function renderCoinImage(coin) {
+  return `
+    <span class="coin coin-image" aria-label="${coinLabels[coin]} coin">
+      <img src="/coin_images/${coinImageFiles[coin]}" alt="" aria-hidden="true" />
+    </span>
+  `;
+}
+
+function renderFractionalPenny(fractionalPenny) {
+  const label = `${formatDecimal(fractionalPenny, 2)} of a 1p coin`;
+  return `
+    <span class="coin coin-image coin-fraction" style="--coin-fill:${fractionalPenny * 100}%" aria-label="${label}">
+      <img class="coin-fraction-ghost" src="/coin_images/1p.png" alt="" aria-hidden="true" />
+      <img class="coin-fraction-fill" src="/coin_images/1p.png" alt="" aria-hidden="true" />
+    </span>
+  `;
 }
 
 function polarToCartesian(cx, cy, r, angleDegrees) {
@@ -407,13 +425,12 @@ function renderMoney(numerator, denominator) {
   const wholeCoinHtml = coins.length
     ? coins
         .map(
-          (coin) =>
-            `<span class="coin ${coinClasses[coin]}" aria-label="${coinLabels[coin]} coin">${coinLabels[coin]}</span>`,
+          (coin) => renderCoinImage(coin),
         )
         .join("")
     : "";
   const fractionalCoinHtml = hasFractionalPenny
-    ? `<span class="coin coin-fraction" style="--coin-fill:${fractionalPenny * 100}%" aria-label="${formatDecimal(fractionalPenny, 2)} of a 1p coin">1p</span>`
+    ? renderFractionalPenny(fractionalPenny)
     : "";
   const coinHtml = wholeCoinHtml || fractionalCoinHtml
     ? `${wholeCoinHtml}${fractionalCoinHtml}`

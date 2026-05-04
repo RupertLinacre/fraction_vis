@@ -565,49 +565,54 @@ h1 {
 
 .coins {
   display: flex;
-  min-height: 116px;
+  min-height: 132px;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 12px;
   align-content: flex-start;
 }
 
 .coin {
   display: inline-grid;
-  width: 58px;
-  height: 58px;
+  width: 72px;
+  height: 72px;
   place-items: center;
-  border: 3px solid rgb(0 0 0 / 24%);
-  border-radius: 50%;
-  box-shadow:
-    inset 0 5px 10px rgb(255 255 255 / 45%),
-    inset 0 -6px 10px rgb(0 0 0 / 14%);
-  color: #1e2730;
-  font-weight: 900;
 }
 
-.coin-pound {
-  background: linear-gradient(135deg, #f4cf60 0 48%, #cfcfd5 49% 100%);
+.coin-image {
+  position: relative;
 }
 
-.coin-silver {
-  background: #d7dce2;
+.coin-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 5px rgb(0 0 0 / 18%));
 }
 
-.coin-copper {
-  background: #c87943;
+.coin-fraction img {
+  position: absolute;
+  inset: 0;
 }
 
-.coin-fraction {
-  background: conic-gradient(
-    var(--green) 0 var(--coin-fill),
-    white var(--coin-fill) 100%
-  );
+.coin-fraction-ghost {
+  opacity: 0.22;
+}
+
+.coin-fraction-fill {
+  mask-image: conic-gradient(#000 0 var(--coin-fill), transparent var(--coin-fill) 100%);
+  -webkit-mask-image: conic-gradient(#000 0 var(--coin-fill), transparent var(--coin-fill) 100%);
 }
 
 .coin-hidden {
+  border: 3px solid rgb(0 0 0 / 24%);
+  border-radius: 50%;
   border-style: dashed;
   background: white;
+  box-shadow:
+    inset 0 5px 10px rgb(255 255 255 / 45%),
+    inset 0 -6px 10px rgb(0 0 0 / 14%);
   color: var(--muted);
+  font-weight: 900;
 }
 
 .zero-money {
