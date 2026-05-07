@@ -55,7 +55,7 @@ const panelLabels = {
   pie: "Pie",
   money: "Money",
   hundredGrid: "100 square",
-  customGrid: "Denominator grid",
+  customGrid: "Equivalent fractions grid",
   pictogram: "Apples",
   equivalence: "Equivalent fractions",
   percentage: "Percentage",
@@ -92,9 +92,65 @@ const equivalenceFillClasses = [
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const plural = (count, singular, pluralForm = `${singular}s`) =>
   count === 1 ? singular : pluralForm;
-const formatDecimal = (value, maxDigits = 1) =>
-  Number.isInteger(value) ? String(value) : value.toFixed(maxDigits);
 const assetPath = (path) => `${import.meta.env.BASE_URL}${path}`;
+const numberWords0To19 = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+  "thirteen",
+  "fourteen",
+  "fifteen",
+  "sixteen",
+  "seventeen",
+  "eighteen",
+  "nineteen",
+];
+const tensWords = {
+  20: "twenty",
+  30: "thirty",
+  40: "forty",
+  50: "fifty",
+  60: "sixty",
+  70: "seventy",
+  80: "eighty",
+  90: "ninety",
+};
+const denominatorWords = {
+  1: ["whole", "wholes"],
+  2: ["half", "halves"],
+  3: ["third", "thirds"],
+  4: ["quarter", "quarters"],
+  5: ["fifth", "fifths"],
+  6: ["sixth", "sixths"],
+  7: ["seventh", "sevenths"],
+  8: ["eighth", "eighths"],
+  9: ["ninth", "ninths"],
+  10: ["tenth", "tenths"],
+  11: ["eleventh", "elevenths"],
+  12: ["twelfth", "twelfths"],
+  13: ["thirteenth", "thirteenths"],
+  14: ["fourteenth", "fourteenths"],
+  15: ["fifteenth", "fifteenths"],
+  16: ["sixteenth", "sixteenths"],
+  17: ["seventeenth", "seventeenths"],
+  18: ["eighteenth", "eighteenths"],
+  19: ["nineteenth", "nineteenths"],
+  20: ["twentieth", "twentieths"],
+  21: ["twenty-first", "twenty-firsts"],
+  22: ["twenty-second", "twenty-seconds"],
+  23: ["twenty-third", "twenty-thirds"],
+  24: ["twenty-fourth", "twenty-fourths"],
+};
 
 function normalizeState() {
   state.denominator = clamp(Math.trunc(state.denominator) || 1, 1, 24);
@@ -126,6 +182,15 @@ function mathEquivalence(numerator, denominator, multiple) {
   );
 }
 
+function gcd(a, b) {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) {
+    [x, y] = [y, x % y];
+  }
+  return x || 1;
+}
+
 function fractionValue(numerator, denominator) {
   return numerator / denominator;
 }
@@ -134,9 +199,127 @@ function wholeScaleFor(numerator, denominator) {
   return Math.max(1, Math.ceil(fractionValue(numerator, denominator)));
 }
 
-function moneyText(pence) {
-  const pounds = pence / 100;
-  return `£${formatDecimal(pounds, 2)}`;
+function numberWord(value) {
+  if (value < 20) {
+    return numberWords0To19[value];
+  }
+  if (value < 100) {
+    const tens = Math.floor(value / 10) * 10;
+    const ones = value % 10;
+    return ones === 0 ? tensWords[tens] : `${tensWords[tens]}-${numberWords0To19[ones]}`;
+  }
+  return String(value);
+}
+
+function sentenceStart(text) {
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
+function fractionWords(numerator, denominator) {
+  if (numerator === 0) {
+    return "zero";
+  }
+  if (denominator === 1) {
+    return `${numberWord(numerator)} ${plural(numerator, "whole")}`;
+  }
+  const [singular, pluralForm] = denominatorWords[denominator] ?? [
+    `${denominator}th`,
+    `${denominator}ths`,
+  ];
+  return `${numberWord(numerator)} ${numerator === 1 ? singular : pluralForm}`;
+}
+
+function mixedNumberWords(numerator, denominator) {
+  const whole = Math.floor(numerator / denominator);
+  const remainder = numerator % denominator;
+  if (remainder === 0) {
+    return numberWord(whole);
+  }
+  return `${numberWord(whole)} and ${fractionWords(remainder, denominator)}`;
+}
+
+function terminatingDecimalPlaces(numerator, denominator) {
+  const divisor = gcd(numerator, denominator);
+  let reducedDenominator = denominator / divisor;
+  let twos = 0;
+  let fives = 0;
+  while (reducedDenominator % 2 === 0) {
+    reducedDenominator /= 2;
+    twos += 1;
+  }
+  while (reducedDenominator % 5 === 0) {
+    reducedDenominator /= 5;
+    fives += 1;
+  }
+  return reducedDenominator === 1 ? Math.max(twos, fives) : null;
+}
+
+function exactRationalText(numerator, denominator) {
+  const places = terminatingDecimalPlaces(numerator, denominator);
+  if (places === null) {
+    return null;
+  }
+  const text = (numerator / denominator).toFixed(places);
+  return text.includes(".") ? text.replace(/0+$/, "").replace(/\.$/, "") : text;
+}
+
+function decimalInfo(numerator, denominator, approximateDigits = 3) {
+  const exactText = exactRationalText(numerator, denominator);
+  return exactText === null
+    ? { exact: false, text: (numerator / denominator).toFixed(approximateDigits) }
+    : { exact: true, text: exactText };
+}
+
+function exactPenceFor(numerator, denominator) {
+  return (numerator * 100) % denominator === 0 ? (numerator * 100) / denominator : null;
+}
+
+function fractionalPennyParts(numerator, denominator) {
+  const remainder = (numerator * 100) % denominator;
+  if (remainder === 0) {
+    return null;
+  }
+  const divisor = gcd(remainder, denominator);
+  return {
+    numerator: remainder / divisor,
+    denominator: denominator / divisor,
+  };
+}
+
+function exactHundredthsFor(numerator, denominator) {
+  return exactPenceFor(numerator, denominator);
+}
+
+function moneyTextFromPence(pence) {
+  return `£${(pence / 100).toFixed(2)}`;
+}
+
+function formatPence(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function moneyAmountWords(pence) {
+  const pounds = Math.floor(pence / 100);
+  const penceRemainder = pence % 100;
+  const poundText = `${pounds} ${plural(pounds, "pound")}`;
+  const penceText = `${penceRemainder} ${plural(penceRemainder, "penny", "pence")}`;
+  if (pounds === 0) {
+    return penceText;
+  }
+  if (penceRemainder === 0) {
+    return poundText;
+  }
+  return `${poundText} and ${penceText}`;
+}
+
+function renderFractionalPenny(fractionalPenny, fractionalPennyLabel) {
+  const label = `${fractionalPennyLabel} of a 1p coin`;
+  return `
+    <span class="coin coin-image coin-fraction" style="--coin-fill:${fractionalPenny * 100}%" aria-label="${label}">
+      <img class="coin-fraction-ghost" src="${assetPath("coin_images/1p.png")}" alt="" aria-hidden="true" />
+      <img class="coin-fraction-fill" src="${assetPath("coin_images/1p.png")}" alt="" aria-hidden="true" />
+    </span>
+  `;
 }
 
 function hideAnswers() {
@@ -146,11 +329,14 @@ function hideAnswers() {
 }
 
 function availablePanelIds(numerator, denominator) {
-  const visible = ["numberline", "decimalNumberline", "pie", "money", "pictogram", "percentage"];
+  const visible = ["numberline", "decimalNumberline", "pie", "money"];
   if (numerator <= denominator) {
-    visible.splice(4, 0, "hundredGrid", "customGrid");
-    visible.splice(7, 0, "equivalence");
+    if (exactHundredthsFor(numerator, denominator) !== null) {
+      visible.push("hundredGrid");
+    }
+    visible.push("customGrid");
   }
+  visible.push("pictogram", "equivalence", "percentage");
   return visible;
 }
 
@@ -331,16 +517,6 @@ function renderCoinImage(coin) {
   `;
 }
 
-function renderFractionalPenny(fractionalPenny) {
-  const label = `${formatDecimal(fractionalPenny, 2)} of a 1p coin`;
-  return `
-    <span class="coin coin-image coin-fraction" style="--coin-fill:${fractionalPenny * 100}%" aria-label="${label}">
-      <img class="coin-fraction-ghost" src="${assetPath("coin_images/1p.png")}" alt="" aria-hidden="true" />
-      <img class="coin-fraction-fill" src="${assetPath("coin_images/1p.png")}" alt="" aria-hidden="true" />
-    </span>
-  `;
-}
-
 function polarToCartesian(cx, cy, r, angleDegrees) {
   const angleRadians = ((angleDegrees - 90) * Math.PI) / 180;
   return {
@@ -442,16 +618,18 @@ function renderStaticNumberline({
       </g>
     `;
   }).join("");
-  const decimalTickCount = maxValue * 10;
+  const decimalTickStep = denominator % 10 === 0 ? 0.1 : 0.05;
+  const decimalTickCount = Math.round(maxValue / decimalTickStep);
   const decimalTicks = Array.from({ length: decimalTickCount + 1 }, (_, index) => {
-    const value = index / 10;
+    const value = index * decimalTickStep;
     const x = numberlineX(value, maxValue);
+    const isLabelledTick = Number.isInteger(Math.round(value * 100) / 10);
     const label = Number.isInteger(value) ? String(value) : value.toFixed(1);
     return `
       <g>
-        <line class="svg-grid-line" x1="${x}" x2="${x}" y1="${rodY + rodH}" y2="${axisY + 8}"></line>
+        <line class="svg-grid-line ${isLabelledTick ? "" : "svg-grid-line-minor"}" x1="${x}" x2="${x}" y1="${rodY + rodH}" y2="${axisY + 8}"></line>
         <line class="svg-tick-line" x1="${x}" x2="${x}" y1="${axisY}" y2="${axisY + 8}"></line>
-        ${renderSvgFractionLabel(x, axisY + 14, mathMarkup(label), 76, 72, "svg-decimal-math-label")}
+        ${isLabelledTick ? renderSvgFractionLabel(x, axisY + 14, mathMarkup(label), 76, 72, "svg-decimal-math-label") : ""}
       </g>
     `;
   }).join("");
@@ -485,8 +663,8 @@ function renderNumberLine(numerator, denominator) {
   const revealed = state.revealed.numberline;
   const maxValue = wholeScaleFor(numerator, denominator);
   const revealedText = fractionValue(numerator, denominator) > 1
-    ? `${numerator} chunks shaded, with each whole number split into ${denominator} equal ${plural(denominator, "chunk")}.`
-    : `${numerator} of ${denominator} equal ${plural(denominator, "chunk")} shaded.`;
+    ? `Each whole is divided into ${denominator} equal ${plural(denominator, "part")}. The point is at ${numerator}/${denominator}, which is ${mixedNumberWords(numerator, denominator)}.`
+    : `The interval from 0 to 1 is divided into ${denominator} equal ${plural(denominator, "part")}. The point is at ${fractionWords(numerator, denominator)}.`;
 
   return `
     <section class="panel wide" aria-labelledby="numberline-title">
@@ -494,7 +672,7 @@ function renderNumberLine(numerator, denominator) {
         "numberline",
         "Fraction numberline",
         revealedText,
-        "How many chunks should be shaded?",
+        `Where is ${fractionWords(numerator, denominator)} on the number line?`,
       )}
       <div class="numberline-shell" aria-label="Number line from 0 to ${maxValue} split into ${denominator} ${plural(denominator, "section")} per whole${revealed ? ` with ${numerator} highlighted` : ""}">
         ${renderStaticNumberline({
@@ -511,25 +689,27 @@ function renderNumberLine(numerator, denominator) {
 
 function renderDecimalNumberLine(numerator, denominator) {
   const revealed = state.revealed.decimalNumberline;
-  const value = fractionValue(numerator, denominator);
   const maxValue = wholeScaleFor(numerator, denominator);
-  const decimalText = formatDecimal(value, 3);
+  const decimal = decimalInfo(numerator, denominator);
+  const revealedText = decimal.exact
+    ? `${numerator}/${denominator} is equal to ${decimal.text}.`
+    : `As a decimal, ${numerator}/${denominator} is approximately ${decimal.text}.`;
 
   return `
     <section class="panel wide" aria-labelledby="decimalNumberline-title">
       ${renderPanelTitle(
         "decimalNumberline",
         "Decimal numberline",
-        `${numerator}/${denominator} is ${decimalText} as a decimal.`,
-        `Where does this fraction sit between 0 and ${maxValue} as a decimal?`,
+        revealedText,
+        `What decimal is equivalent to ${fractionWords(numerator, denominator)}?`,
       )}
-      <div class="numberline-shell" aria-label="Decimal numberline from 0 to ${maxValue} split into ${denominator} chunks per whole${revealed ? ` and filled to ${decimalText}` : ""}">
+      <div class="numberline-shell" aria-label="Decimal numberline from 0 to ${maxValue} split into ${denominator} parts per whole${revealed ? ` and filled to ${decimal.text}` : ""}">
         ${renderStaticNumberline({
           numerator,
           denominator,
           revealed,
           mode: "decimal",
-          markerLabel: decimalText,
+          markerLabel: decimal.text,
         })}
       </div>
     </section>
@@ -560,16 +740,19 @@ function renderPie(numerator, denominator) {
     const selectedSlices = clamp(numerator - index * denominator, 0, denominator);
     return renderPieSvg(denominator, selectedSlices, revealed);
   }).join("");
+  const revealedText = fractionValue(numerator, denominator) > 1
+    ? `${numerator}/${denominator} is equal to ${mixedNumberWords(numerator, denominator)}. That amount is shaded across the wholes.`
+    : `${numerator} of the ${denominator} equal ${plural(denominator, "part")} ${numerator === 1 ? "is" : "are"} shaded. The fraction is ${fractionWords(numerator, denominator)}.`;
 
   return `
     <section class="panel" aria-labelledby="pie-title">
       ${renderPanelTitle(
         "pie",
         "Pie",
-        `${numerator} out of ${denominator} ${plural(denominator, "slice")} shown across ${pieCount} ${plural(pieCount, "pie")}.`,
-        `${pieCount} ${plural(pieCount, "pie")} split into ${denominator} equal ${plural(denominator, "slice")}.`,
+        revealedText,
+        `Each whole is divided into ${denominator} equal ${plural(denominator, "part")}. How many parts should be shaded?`,
       )}
-      <div class="pie-set" role="img" aria-label="${pieCount} ${plural(pieCount, "pie")} split into ${denominator} ${plural(denominator, "slice")}${revealed ? ` with ${numerator} shaded slices` : ""}">
+      <div class="pie-set" role="img" aria-label="${pieCount} ${plural(pieCount, "pie")} split into ${denominator} equal ${plural(denominator, "part")}${revealed ? ` with ${numerator} shaded parts` : ""}">
         ${pies}
       </div>
     </section>
@@ -611,29 +794,37 @@ function renderEquivalence(numerator, denominator) {
   const multiple = state.equivalenceMultiple;
   const equivalentNumerator = numerator * multiple;
   const equivalentDenominator = denominator * multiple;
-  const splitText = `Each original slice is split into ${multiple}.`;
+  const groupCount = wholeScaleFor(numerator, denominator);
+  const originalPies = Array.from({ length: groupCount }, (_, index) => {
+    const selectedParts = clamp(numerator - index * denominator, 0, denominator);
+    return renderEquivalencePie(selectedParts, denominator, multiple, revealed);
+  }).join("");
+  const equivalentPies = Array.from({ length: groupCount }, (_, index) => {
+    const selectedParts = clamp(numerator - index * denominator, 0, denominator);
+    return renderEquivalencePie(selectedParts, denominator, multiple, revealed, true);
+  }).join("");
 
   return `
     <section class="panel wide" aria-labelledby="equivalence-title">
       ${renderPanelTitle(
         "equivalence",
         "Equivalent fractions",
-        `${splitText} ${equivalentNumerator} of ${equivalentDenominator} smaller slices are coloured.`,
-        splitText,
+        `${numerator}/${denominator} = ${equivalentNumerator}/${equivalentDenominator}. The same whole is shaded.`,
+        `Each equal part is split into ${multiple} smaller equal ${plural(multiple, "part")}. What equivalent fraction does this make?`,
       )}
       <label class="inline-control equivalence-control">
-        <span>Split each slice into</span>
+        <span>Split each part into</span>
         <input id="equivalenceMultiple" type="range" min="2" max="8" value="${multiple}" />
         <strong>${multiple}</strong>
       </label>
       <div class="equivalence-view" role="img" aria-label="${revealed ? `${numerator} over ${denominator} equals ${equivalentNumerator} over ${equivalentDenominator}` : `Original pie and split pie hidden answer`}">
         <div class="equivalence-part">
-          ${renderEquivalencePie(numerator, denominator, multiple, revealed)}
+          <div class="equivalence-pie-set">${originalPies}</div>
           <div class="equivalence-label">${mathFraction(numerator, denominator)}</div>
         </div>
         <div class="equivalence-symbol" aria-hidden="true">=</div>
         <div class="equivalence-part">
-          ${renderEquivalencePie(numerator, denominator, multiple, revealed, true)}
+          <div class="equivalence-pie-set">${equivalentPies}</div>
           <div class="equivalence-label">
             ${revealed ? mathFraction(equivalentNumerator, equivalentDenominator) : "?"}
           </div>
@@ -648,16 +839,25 @@ function renderEquivalence(numerator, denominator) {
 
 function renderMoney(numerator, denominator) {
   const revealed = state.revealed.money;
-  const exactPence = fractionValue(numerator, denominator) * 100;
-  const wholePence = Math.floor(exactPence);
-  const fractionalPenny = exactPence - wholePence;
+  const penceValue = (numerator / denominator) * 100;
+  const wholePence = Math.floor(penceValue);
+  const fractionalPenny = penceValue - wholePence;
   const hasFractionalPenny = fractionalPenny > 0.0001;
-  const displayPence = formatDecimal(exactPence, 2);
-  const displayMoney = moneyText(exactPence);
-  const hiddenTitleText = fractionValue(numerator, denominator) >= 1
-    ? "What is this fraction in pounds and pence?"
-    : "What is this fraction in pence?";
-  const exact = Number.isInteger(exactPence);
+  const fractionalPennyFraction = fractionalPennyParts(numerator, denominator);
+  const fractionalPennyLabel = fractionalPennyFraction
+    ? `${fractionalPennyFraction.numerator}/${fractionalPennyFraction.denominator}`
+    : "";
+  const displayMoney = moneyTextFromPence(penceValue);
+  const penceText = formatPence(penceValue);
+  const fractionWordsText = sentenceStart(fractionWords(numerator, denominator));
+  const exactPence = exactPenceFor(numerator, denominator);
+  const revealedText = fractionValue(numerator, denominator) > 1
+    ? exactPence === null
+      ? `${fractionWordsText} of £1 is about ${displayMoney}. That is ${penceText}p.`
+      : `${fractionWordsText} of £1 is ${displayMoney}. That is ${moneyAmountWords(exactPence)}, which is ${exactPence}p.`
+    : exactPence === null
+      ? `${fractionWordsText} of £1 is about ${displayMoney}. That is ${penceText}p.`
+      : `${fractionWordsText} of £1 is ${displayMoney}. That is ${exactPence}p.`;
   const coins = moneyCoins(wholePence);
   const coinCount = coins.length + (hasFractionalPenny ? 1 : 0);
   const wholeCoinHtml = coins.length
@@ -668,7 +868,7 @@ function renderMoney(numerator, denominator) {
         .join("")
     : "";
   const fractionalCoinHtml = hasFractionalPenny
-    ? renderFractionalPenny(fractionalPenny)
+    ? renderFractionalPenny(fractionalPenny, fractionalPennyLabel)
     : "";
   const coinHtml = wholeCoinHtml || fractionalCoinHtml
     ? `${wholeCoinHtml}${fractionalCoinHtml}`
@@ -687,29 +887,23 @@ function renderMoney(numerator, denominator) {
       ${renderPanelTitle(
         "money",
         "Money",
-        `${displayMoney} or ${displayPence}p.`,
-        hiddenTitleText,
+        revealedText,
+        `If £1 is one whole, what amount is ${fractionWords(numerator, denominator)}?`,
       )}
-      <div class="coins" role="img" aria-label="${revealed ? `${displayPence} pence shown using UK coins` : `${coinCount} hidden UK ${plural(coinCount, "coin")}`}">
+      <div class="coins" role="img" aria-label="${revealed ? `${penceText} pence shown using UK coins` : `${coinCount} hidden UK ${plural(coinCount, "coin")}`}">
         ${revealed ? coinHtml : hiddenCoins}
       </div>
-      ${revealed && !exact ? `<p class="hint">The last coin shows ${formatDecimal(fractionalPenny, 2)} of a penny.</p>` : ""}
+      ${revealed && hasFractionalPenny ? `<p class="hint">The last coin shows ${fractionalPennyLabel} of a penny.</p>` : ""}
     </section>
   `;
 }
 
 function renderHundredGrid(numerator, denominator) {
   const revealed = state.revealed.hundredGrid;
-  const exactSquares = (numerator / denominator) * 100;
-  const fullSquares = Math.floor(exactSquares);
-  const partialSquare = exactSquares - fullSquares;
-  const hasPartialSquare = partialSquare > 0.0001;
-  const squareText = `${formatDecimal(exactSquares)} of 100 squares`;
+  const exactSquares = exactHundredthsFor(numerator, denominator) ?? 0;
   const cells = Array.from({ length: 100 }, (_, index) => {
-    const selected = revealed && index < fullSquares;
-    const partial = revealed && hasPartialSquare && index === fullSquares;
-    const style = partial ? ` style="--partial-fill:${partialSquare * 100}%"` : "";
-    return `<span class="${selected ? "selected" : ""}${partial ? " partial" : ""}"${style}></span>`;
+    const selected = revealed && index < exactSquares;
+    return `<span class="${selected ? "selected" : ""}"></span>`;
   }).join("");
 
   return `
@@ -717,10 +911,10 @@ function renderHundredGrid(numerator, denominator) {
       ${renderPanelTitle(
         "hundredGrid",
         "100 square",
-        `${squareText}.`,
-        "100 empty squares.",
+        `${numerator}/${denominator} is equal to ${exactSquares}/100, so ${exactSquares} ${plural(exactSquares, "square")} ${exactSquares === 1 ? "is" : "are"} shaded.`,
+        `If the whole is 100 squares, how many squares represent ${fractionWords(numerator, denominator)}?`,
       )}
-      <div class="grid hundred-grid" role="img" aria-label="10 by 10 grid${revealed ? ` with ${squareText} shaded` : " with no squares shaded"}">
+      <div class="grid hundred-grid" role="img" aria-label="10 by 10 grid${revealed ? ` with ${exactSquares} of 100 squares shaded` : " with no squares shaded"}">
         ${cells}
       </div>
     </section>
@@ -743,9 +937,9 @@ function renderCustomGrid(numerator, denominator) {
     <section class="panel" aria-labelledby="customGrid-title">
       ${renderPanelTitle(
         "customGrid",
-        "Denominator grid",
-        `${shaded} of ${total} squares.`,
-        `${total} empty squares.`,
+        "Equivalent fractions grid",
+        `${numerator}/${denominator} = ${shaded}/${total}. The same whole is shaded.`,
+        `If each equal part is split into ${state.gridMultiple} smaller equal ${plural(state.gridMultiple, "part")}, what equivalent fraction will be shown?`,
       )}
       <label class="inline-control">
         <span>Rows of ${denominator}</span>
@@ -768,12 +962,17 @@ function renderPictogram(numerator, denominator) {
       const selected = revealed && globalIndex < numerator;
       return `<span class="apple ${selected ? "selected" : ""}" aria-label="${selected ? "shaded apple" : "unshaded apple"}">🍎</span>`;
     }).join("");
-    return `<div class="apple-group" style="--apple-columns:${denominator}">${apples}</div>`;
+    return `
+      <div class="apple-group-wrap">
+        <div class="apple-group-label">1 whole</div>
+        <div class="apple-group" style="--apple-columns:${denominator}">${apples}</div>
+      </div>
+    `;
   }).join("");
   const totalApples = groupCount * denominator;
   const revealedText = fractionValue(numerator, denominator) <= 1
-    ? `${numerator} ${plural(numerator, "apple")} of a group of ${denominator}.`
-    : `${numerator} ${plural(numerator, "apple")} from ${groupCount} ${plural(groupCount, "group")} of ${denominator}.`;
+    ? `${numerator} of the ${denominator} ${plural(denominator, "apple")} ${numerator === 1 ? "is" : "are"} selected. The fraction is ${fractionWords(numerator, denominator)}.`
+    : `${numerator} ${plural(numerator, "apple")} ${numerator === 1 ? "is" : "are"} selected. Since ${denominator} ${plural(denominator, "apple")} make 1 whole group, this is ${mixedNumberWords(numerator, denominator)}.`;
 
   return `
     <section class="panel wide" aria-labelledby="pictogram-title">
@@ -781,7 +980,7 @@ function renderPictogram(numerator, denominator) {
         "pictogram",
         "Apples",
         revealedText,
-        `${groupCount} ${plural(groupCount, "group")} of ${denominator} ${plural(denominator, "apple")}.`,
+        `If 1 whole is ${denominator} ${plural(denominator, "apple")}, how many apples show ${fractionWords(numerator, denominator)}?`,
       )}
       <div class="apple-groups" role="img" aria-label="${totalApples} ${plural(totalApples, "apple")} in ${groupCount} ${plural(groupCount, "group")}${revealed ? ` with ${numerator} shaded` : " with none shaded"}">
         ${groups}
@@ -792,11 +991,13 @@ function renderPictogram(numerator, denominator) {
 
 function renderPercentage(numerator, denominator) {
   const revealed = state.revealed.percentage;
-  const exactPercent = fractionValue(numerator, denominator) * 100;
+  const percent = decimalInfo(numerator * 100, denominator, 1);
+  const exactPercent = (numerator / denominator) * 100;
   const maxPercent = wholeScaleFor(numerator, denominator) * 100;
   const roundedPercent = Math.round(exactPercent);
-  const exact = Number.isInteger(exactPercent);
-  const displayPercent = formatDecimal(exactPercent);
+  const revealedText = fractionValue(numerator, denominator) > 1
+    ? `${numerator}/${denominator} is ${percent.exact ? "equal to" : "approximately"} ${percent.text}%, so it is more than one whole.`
+    : `${numerator}/${denominator} is ${percent.exact ? "equal to" : "approximately"} ${percent.text}%.`;
   const markerStep = maxPercent <= 100 ? 25 : maxPercent <= 200 ? 50 : 100;
   const markerValues = Array.from(
     { length: Math.floor(maxPercent / markerStep) + 1 },
@@ -818,24 +1019,25 @@ function renderPercentage(numerator, denominator) {
       ${renderPanelTitle(
         "percentage",
         "Percentage",
-        `${displayPercent}% means ${displayPercent} out of 100.`,
-        "What percentage of the bar should be shaded?",
+        revealedText,
+        "If the whole bar is 100%, what percentage is shaded?",
       )}
-      <div class="percentage-vis" role="img" aria-label="${revealed ? `${displayPercent} percent shaded on a 0 to ${maxPercent} percent bar` : `Percentage bar from 0 to ${maxPercent} percent with no answer shaded`}">
+      <div class="percentage-vis" role="img" aria-label="${revealed ? `${percent.text} percent shaded on a 0 to ${maxPercent} percent bar` : `Percentage bar from 0 to ${maxPercent} percent with no answer shaded`}">
         <div class="percentage-track">
           <div class="percentage-fill" style="width:${revealed ? fillWidth : 0}%"></div>
           <div class="percentage-markers">${markers}</div>
           ${
             revealed
-              ? `<div class="percentage-current${markerClass}" style="left:${markerPosition}%"><span>${displayPercent}%</span></div>`
+              ? `<div class="percentage-current${markerClass}" style="left:${markerPosition}%"><span>${percent.text}%</span></div>`
               : ""
           }
         </div>
-        <div class="percentage-answer">${revealed ? `${displayPercent}%` : "?"}</div>
+        <div class="percentage-answer">${revealed ? `${percent.text}%` : "?"}</div>
       </div>
+      ${revealed && percent.exact && Number.isInteger(exactPercent) ? `<p class="hint">${percent.text}% means ${percent.text} parts per hundred.</p>` : ""}
       ${
-        revealed && !exact
-          ? `<p class="hint">That is about ${roundedPercent}% rounded to the nearest whole percent.</p>`
+        revealed && !percent.exact
+          ? `<p class="hint">Rounded to the nearest whole percent, this is ${roundedPercent}%.</p>`
           : ""
       }
     </section>
@@ -877,15 +1079,18 @@ function render() {
             </h1>
           </div>
 
-          <form class="fraction-card" aria-label="Choose a fraction">
+          <form class="fraction-card" aria-label="Choose a fraction" aria-describedby="fraction-help">
+            <p class="fraction-card-help" id="fraction-help">
+              Type a numerator and denominator to choose the fraction. The diagrams update as you type.
+            </p>
             <div class="fraction-editor-row">
               <label for="numerator">Numerator</label>
-              <input id="numerator" type="number" min="0" value="${numerator}" inputmode="numeric" />
+              <input id="numerator" type="number" min="0" value="${numerator}" inputmode="numeric" aria-describedby="fraction-help" />
             </div>
             <span class="fraction-bar" aria-hidden="true"></span>
             <div class="fraction-editor-row">
               <label for="denominator">Denominator</label>
-              <input id="denominator" type="number" min="1" max="24" value="${denominator}" inputmode="numeric" />
+              <input id="denominator" type="number" min="1" max="24" value="${denominator}" inputmode="numeric" aria-describedby="fraction-help" />
             </div>
           </form>
         </div>
@@ -917,21 +1122,27 @@ function render() {
     </main>
   `;
 
-  document.querySelector("#numerator").addEventListener("change", (event) => {
-    state.numerator = Number(event.target.value);
+  const updateFractionInput = (event) => {
+    const value = Number(event.target.value);
+    if (!Number.isFinite(value) || event.target.value === "") {
+      return;
+    }
+    state[event.target.id] = value;
     normalizeState();
     hideAnswers();
     syncUrlSettings();
     render();
-  });
+    const input = document.querySelector(`#${event.target.id}`);
+    input?.focus();
+    try {
+      input?.setSelectionRange(input.value.length, input.value.length);
+    } catch {
+      // Number inputs do not support selection ranges in every browser.
+    }
+  };
 
-  document.querySelector("#denominator").addEventListener("change", (event) => {
-    state.denominator = Number(event.target.value);
-    normalizeState();
-    hideAnswers();
-    syncUrlSettings();
-    render();
-  });
+  document.querySelector("#numerator").addEventListener("input", updateFractionInput);
+  document.querySelector("#denominator").addEventListener("input", updateFractionInput);
 
   document.querySelector("#gridMultiple")?.addEventListener("input", (event) => {
     state.gridMultiple = Number(event.target.value);

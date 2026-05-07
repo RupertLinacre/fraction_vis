@@ -106,6 +106,16 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.fraction-card-help {
+  grid-column: 1 / -1;
+  max-width: 32ch;
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 .fraction-editor-row {
   display: contents;
 }
@@ -380,6 +390,11 @@ h1 {
   shape-rendering: crispEdges;
 }
 
+.svg-grid-line-minor {
+  stroke: rgb(213 221 226 / 58%);
+  stroke-width: 0.8;
+}
+
 .svg-tick-line {
   stroke: var(--ink);
   stroke-width: 1.5;
@@ -542,8 +557,15 @@ h1 {
   gap: 10px;
 }
 
+.equivalence-pie-set {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 .equivalence-pie {
-  width: min(100%, 260px);
+  width: min(100%, 220px);
 }
 
 .equivalence-pie path,
@@ -826,6 +848,19 @@ h1 {
   display: grid;
   align-items: start;
   gap: 14px;
+}
+
+.apple-group-wrap {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.apple-group-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .apple-group {
