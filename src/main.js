@@ -1072,13 +1072,6 @@ function render() {
     <main>
       <section class="workspace" aria-labelledby="app-title">
         <div class="intro">
-          <div>
-            <p class="eyebrow">Fraction Explorer</p>
-            <h1 id="app-title" aria-label="${numerator} over ${denominator}">
-              <span class="hero-fraction">${mathFraction(numerator, denominator, true)}</span>
-            </h1>
-          </div>
-
           <form class="fraction-card" aria-label="Choose a fraction" aria-describedby="fraction-help">
             <p class="fraction-card-help" id="fraction-help">
               Type a numerator and denominator to choose the fraction. The diagrams update as you type.
@@ -1093,6 +1086,13 @@ function render() {
               <input id="denominator" type="number" min="1" max="24" value="${denominator}" inputmode="numeric" aria-describedby="fraction-help" />
             </div>
           </form>
+
+          <div class="hero-wrap">
+            <p class="eyebrow">Fraction Explorer</p>
+            <h1 id="app-title" aria-label="${numerator} over ${denominator}">
+              <span class="hero-fraction">${mathFraction(numerator, denominator, true)}</span>
+            </h1>
+          </div>
         </div>
 
         <div class="practice-bar">
