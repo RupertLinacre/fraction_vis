@@ -135,6 +135,7 @@ h1 {
 .reveal-all-toggle:focus,
 .settings-button:focus,
 .settings-toggle input:focus-visible + span,
+.settings-order-controls button:focus,
 .reveal-toggle:focus {
   outline: 3px solid var(--yellow);
   outline-offset: 2px;
@@ -222,13 +223,20 @@ h1 {
   top: calc(100% + 8px);
   right: 0;
   display: grid;
-  width: min(280px, calc(100vw - 32px));
+  width: min(340px, calc(100vw - 32px));
   gap: 6px;
   padding: 10px;
   border: 2px solid var(--ink);
   border-radius: 8px;
   background: var(--paper);
   box-shadow: var(--shadow);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
 }
 
 .settings-toggle {
@@ -246,6 +254,38 @@ h1 {
   width: 18px;
   height: 18px;
   accent-color: var(--blue);
+}
+
+.settings-order-controls {
+  display: grid;
+  grid-template-columns: repeat(2, 32px);
+  gap: 4px;
+}
+
+.settings-order-controls button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-order-controls button:disabled {
+  border-color: var(--line);
+  color: var(--line);
+  cursor: default;
+}
+
+.settings-order-controls button:not(:disabled):hover {
+  background: var(--paper-strong);
+  transform: translateY(-1px);
 }
 
 .reveal-all-toggle[aria-pressed="true"] {
@@ -784,11 +824,16 @@ h1 {
 
 .apple-groups {
   display: grid;
+  align-items: start;
   gap: 14px;
 }
 
 .apple-group {
   grid-template-columns: repeat(var(--apple-columns), 38px);
+  justify-self: start;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
   overflow-x: auto;
   padding: 10px;
   border: 2px solid var(--line);

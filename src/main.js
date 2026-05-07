@@ -2,9 +2,14 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import "./styles.css";
 
-const state = {
+const defaultFraction = {
   numerator: 3,
-  denominator: 7,
+  denominator: 4,
+};
+
+const state = {
+  numerator: defaultFraction.numerator,
+  denominator: defaultFraction.denominator,
   gridMultiple: 4,
   equivalenceMultiple: 2,
   settingsOpen: false,
@@ -30,6 +35,17 @@ const state = {
     pictogram: true,
     percentage: true,
   },
+  panelOrder: [
+    "numberline",
+    "decimalNumberline",
+    "pie",
+    "money",
+    "hundredGrid",
+    "customGrid",
+    "pictogram",
+    "equivalence",
+    "percentage",
+  ],
 };
 
 const panelIds = Object.keys(state.revealed);
@@ -88,6 +104,10 @@ function normalizeState() {
   panelIds.forEach((panelId) => {
     state.enabledPanels[panelId] = state.enabledPanels[panelId] !== false;
   });
+  state.panelOrder = [
+    ...state.panelOrder.filter((panelId) => panelIds.includes(panelId)),
+    ...panelIds.filter((panelId) => !state.panelOrder.includes(panelId)),
+  ];
 }
 
 function mathMarkup(tex) {
@@ -116,7 +136,7 @@ function wholeScaleFor(numerator, denominator) {
 
 function moneyText(pence) {
   const pounds = pence / 100;
-  return pounds >= 1 ? `£${formatDecimal(pounds, 2)}` : `${formatDecimal(pence, 2)}p`;
+  return `£${formatDecimal(pounds, 2)}`;
 }
 
 function hideAnswers() {
@@ -135,27 +155,33 @@ function availablePanelIds(numerator, denominator) {
 }
 
 function visiblePanelIds(numerator, denominator) {
-  return availablePanelIds(numerator, denominator).filter((panelId) => state.enabledPanels[panelId]);
+  const available = new Set(availablePanelIds(numerator, denominator));
+  return state.panelOrder.filter((panelId) => available.has(panelId) && state.enabledPanels[panelId]);
 }
 
 function applyUrlSettings() {
   const params = new URLSearchParams(window.location.search);
-  const numerator = Number(params.get("n"));
-  const denominator = Number(params.get("d"));
-  const gridMultiple = Number(params.get("gm"));
-  const equivalenceMultiple = Number(params.get("em"));
+  const numeratorParam = params.get("n");
+  const denominatorParam = params.get("d");
+  const gridMultipleParam = params.get("gm");
+  const equivalenceMultipleParam = params.get("em");
+  const numerator = Number(numeratorParam);
+  const denominator = Number(denominatorParam);
+  const gridMultiple = Number(gridMultipleParam);
+  const equivalenceMultiple = Number(equivalenceMultipleParam);
   const panels = params.get("panels");
+  const order = params.get("order");
 
-  if (Number.isFinite(numerator)) {
+  if (numeratorParam !== null && Number.isFinite(numerator)) {
     state.numerator = numerator;
   }
-  if (Number.isFinite(denominator)) {
+  if (denominatorParam !== null && Number.isFinite(denominator)) {
     state.denominator = denominator;
   }
-  if (Number.isFinite(gridMultiple)) {
+  if (gridMultipleParam !== null && Number.isFinite(gridMultiple)) {
     state.gridMultiple = gridMultiple;
   }
-  if (Number.isFinite(equivalenceMultiple)) {
+  if (equivalenceMultipleParam !== null && Number.isFinite(equivalenceMultiple)) {
     state.equivalenceMultiple = equivalenceMultiple;
   }
   if (panels !== null) {
@@ -169,6 +195,27 @@ function applyUrlSettings() {
       state.enabledPanels[panelId] = enabled.has(panelId);
     });
   }
+  if (order !== null) {
+    const orderedPanels = order
+      .split(",")
+      .map((panelId) => panelId.trim())
+      .filter((panelId, index, all) => panelIds.includes(panelId) && all.indexOf(panelId) === index);
+    if (orderedPanels.length > 0) {
+      state.panelOrder = [
+        ...orderedPanels,
+        ...panelIds.filter((panelId) => !orderedPanels.includes(panelId)),
+      ];
+    }
+  } else if (panels !== null) {
+    const orderedPanels = panels
+      .split(",")
+      .map((panelId) => panelId.trim())
+      .filter((panelId, index, all) => panelIds.includes(panelId) && all.indexOf(panelId) === index);
+    state.panelOrder = [
+      ...orderedPanels,
+      ...panelIds.filter((panelId) => !orderedPanels.includes(panelId)),
+    ];
+  }
 
   normalizeState();
 }
@@ -181,18 +228,20 @@ function syncUrlSettings() {
   params.set("em", String(state.equivalenceMultiple));
   params.set(
     "panels",
-    panelIds.filter((panelId) => state.enabledPanels[panelId]).join(","),
+    state.panelOrder.filter((panelId) => state.enabledPanels[panelId]).join(","),
   );
+  params.set("order", state.panelOrder.join(","));
   window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
 }
 
 function renderPanelTitle(panelId, title, revealedText, hiddenText = "Work it out, then reveal it.") {
   const revealed = state.revealed[panelId];
+  const titleText = revealed ? revealedText : hiddenText;
   return `
     <div class="panel-title">
       <div>
         <h2 id="${panelId}-title">${title}</h2>
-        <p>${revealed ? revealedText : hiddenText}</p>
+        ${titleText ? `<p>${titleText}</p>` : ""}
       </div>
       <button
         class="reveal-toggle"
@@ -208,19 +257,39 @@ function renderPanelTitle(panelId, title, revealedText, hiddenText = "Work it ou
 }
 
 function renderSettingsPanel() {
-  const toggles = panelIds
-    .map(
-      (panelId) => `
-        <label class="settings-toggle">
-          <input
-            type="checkbox"
-            data-panel-setting="${panelId}"
-            ${state.enabledPanels[panelId] ? "checked" : ""}
-          />
-          <span>${panelLabels[panelId]}</span>
-        </label>
-      `,
-    )
+  const toggles = state.panelOrder
+    .map((panelId, index) => {
+      const isFirst = index === 0;
+      const isLast = index === state.panelOrder.length - 1;
+      return `
+        <div class="settings-row">
+          <label class="settings-toggle">
+            <input
+              type="checkbox"
+              data-panel-setting="${panelId}"
+              ${state.enabledPanels[panelId] ? "checked" : ""}
+            />
+            <span>${panelLabels[panelId]}</span>
+          </label>
+          <div class="settings-order-controls" aria-label="Move ${panelLabels[panelId]}">
+            <button
+              type="button"
+              data-panel-move="${panelId}"
+              data-direction="-1"
+              aria-label="Move ${panelLabels[panelId]} up"
+              ${isFirst ? "disabled" : ""}
+            >↑</button>
+            <button
+              type="button"
+              data-panel-move="${panelId}"
+              data-direction="1"
+              aria-label="Move ${panelLabels[panelId]} down"
+              ${isLast ? "disabled" : ""}
+            >↓</button>
+          </div>
+        </div>
+      `;
+    })
     .join("");
 
   return `
@@ -364,11 +433,12 @@ function renderStaticNumberline({
           ? mathMarkup(String(index / denominator))
           : mathFraction(index, denominator);
     const isAnswerTick = index === numerator;
+    const showLabel = revealed || index % denominator === 0;
     return `
       <g>
         <line class="svg-grid-line" x1="${x}" x2="${x}" y1="${mode === "decimal" ? rodY + rodH : rodY}" y2="${axisY + 8}"></line>
         <line class="svg-tick-line" x1="${x}" x2="${x}" y1="${axisY}" y2="${axisY + 8}"></line>
-        ${revealed ? renderSvgFractionLabel(x, axisY + 14, label, 102, 72, isAnswerTick ? "svg-math-label-active" : "") : ""}
+        ${showLabel ? renderSvgFractionLabel(x, axisY + 14, label, 102, 72, revealed && isAnswerTick ? "svg-math-label-active" : "") : ""}
       </g>
     `;
   }).join("");
@@ -413,16 +483,18 @@ function renderStaticNumberline({
 
 function renderNumberLine(numerator, denominator) {
   const revealed = state.revealed.numberline;
-  const colouredVerb = numerator === 1 ? "is" : "are";
   const maxValue = wholeScaleFor(numerator, denominator);
+  const revealedText = fractionValue(numerator, denominator) > 1
+    ? `${numerator} chunks shaded, with each whole number split into ${denominator} equal ${plural(denominator, "chunk")}.`
+    : `${numerator} of ${denominator} equal ${plural(denominator, "chunk")} shaded.`;
 
   return `
     <section class="panel wide" aria-labelledby="numberline-title">
       ${renderPanelTitle(
         "numberline",
         "Fraction numberline",
-        `${numerator} of ${denominator} equal ${plural(denominator, "step")} ${colouredVerb} coloured.`,
-        `Split each whole into ${denominator} equal ${plural(denominator, "step")}.`,
+        revealedText,
+        "How many chunks should be shaded?",
       )}
       <div class="numberline-shell" aria-label="Number line from 0 to ${maxValue} split into ${denominator} ${plural(denominator, "section")} per whole${revealed ? ` with ${numerator} highlighted` : ""}">
         ${renderStaticNumberline({
@@ -582,6 +654,9 @@ function renderMoney(numerator, denominator) {
   const hasFractionalPenny = fractionalPenny > 0.0001;
   const displayPence = formatDecimal(exactPence, 2);
   const displayMoney = moneyText(exactPence);
+  const hiddenTitleText = fractionValue(numerator, denominator) >= 1
+    ? "What is this fraction in pounds and pence?"
+    : "What is this fraction in pence?";
   const exact = Number.isInteger(exactPence);
   const coins = moneyCoins(wholePence);
   const coinCount = coins.length + (hasFractionalPenny ? 1 : 0);
@@ -612,8 +687,8 @@ function renderMoney(numerator, denominator) {
       ${renderPanelTitle(
         "money",
         "Money",
-        `${displayMoney}, or ${displayPence}p, out of £1.`,
-        `What is this fraction of £1?`,
+        `${displayMoney} or ${displayPence}p.`,
+        hiddenTitleText,
       )}
       <div class="coins" role="img" aria-label="${revealed ? `${displayPence} pence shown using UK coins` : `${coinCount} hidden UK ${plural(coinCount, "coin")}`}">
         ${revealed ? coinHtml : hiddenCoins}
@@ -696,14 +771,17 @@ function renderPictogram(numerator, denominator) {
     return `<div class="apple-group" style="--apple-columns:${denominator}">${apples}</div>`;
   }).join("");
   const totalApples = groupCount * denominator;
+  const revealedText = fractionValue(numerator, denominator) <= 1
+    ? `${numerator} ${plural(numerator, "apple")} of a group of ${denominator}.`
+    : `${numerator} ${plural(numerator, "apple")} from ${groupCount} ${plural(groupCount, "group")} of ${denominator}.`;
 
   return `
     <section class="panel wide" aria-labelledby="pictogram-title">
       ${renderPanelTitle(
         "pictogram",
         "Apples",
-        `${numerator} red ${plural(numerator, "apple")} from ${groupCount} ${plural(groupCount, "group")} of ${denominator}.`,
-        `${groupCount} ${plural(groupCount, "group")} of ${denominator} ${plural(denominator, "apple")} ready to shade.`,
+        revealedText,
+        `${groupCount} ${plural(groupCount, "group")} of ${denominator} ${plural(denominator, "apple")}.`,
       )}
       <div class="apple-groups" role="img" aria-label="${totalApples} ${plural(totalApples, "apple")} in ${groupCount} ${plural(groupCount, "group")}${revealed ? ` with ${numerator} shaded` : " with none shaded"}">
         ${groups}
@@ -764,6 +842,21 @@ function renderPercentage(numerator, denominator) {
   `;
 }
 
+function renderPanel(panelId, numerator, denominator) {
+  const panelRenderers = {
+    numberline: renderNumberLine,
+    decimalNumberline: renderDecimalNumberLine,
+    pie: renderPie,
+    money: renderMoney,
+    hundredGrid: renderHundredGrid,
+    customGrid: renderCustomGrid,
+    pictogram: renderPictogram,
+    equivalence: renderEquivalence,
+    percentage: renderPercentage,
+  };
+  return panelRenderers[panelId](numerator, denominator);
+}
+
 function render() {
   normalizeState();
   syncUrlSettings();
@@ -818,15 +911,7 @@ function render() {
         </div>
 
         <div class="panels">
-          ${visiblePanels.includes("numberline") ? renderNumberLine(numerator, denominator) : ""}
-          ${visiblePanels.includes("decimalNumberline") ? renderDecimalNumberLine(numerator, denominator) : ""}
-          ${visiblePanels.includes("pie") ? renderPie(numerator, denominator) : ""}
-          ${visiblePanels.includes("money") ? renderMoney(numerator, denominator) : ""}
-          ${visiblePanels.includes("hundredGrid") ? renderHundredGrid(numerator, denominator) : ""}
-          ${visiblePanels.includes("customGrid") ? renderCustomGrid(numerator, denominator) : ""}
-          ${visiblePanels.includes("pictogram") ? renderPictogram(numerator, denominator) : ""}
-          ${visiblePanels.includes("equivalence") ? renderEquivalence(numerator, denominator) : ""}
-          ${visiblePanels.includes("percentage") ? renderPercentage(numerator, denominator) : ""}
+          ${visiblePanels.map((panelId) => renderPanel(panelId, numerator, denominator)).join("")}
         </div>
       </section>
     </main>
@@ -895,6 +980,26 @@ function render() {
       const panelId = input.dataset.panelSetting;
       state.enabledPanels[panelId] = input.checked;
       state.revealed[panelId] = false;
+      syncUrlSettings();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-panel-move]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const panelId = button.dataset.panelMove;
+      const direction = Number(button.dataset.direction);
+      const currentIndex = state.panelOrder.indexOf(panelId);
+      const nextIndex = currentIndex + direction;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= state.panelOrder.length) {
+        return;
+      }
+      const nextOrder = [...state.panelOrder];
+      [nextOrder[currentIndex], nextOrder[nextIndex]] = [
+        nextOrder[nextIndex],
+        nextOrder[currentIndex],
+      ];
+      state.panelOrder = nextOrder;
       syncUrlSettings();
       render();
     });
