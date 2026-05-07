@@ -468,13 +468,6 @@ l0,-`+(t+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
     <main>
       <section class="workspace" aria-labelledby="app-title">
         <div class="intro">
-          <div>
-            <p class="eyebrow">Fraction Explorer</p>
-            <h1 id="app-title" aria-label="${e} over ${t}">
-              <span class="hero-fraction">${Sa(e,t,!0)}</span>
-            </h1>
-          </div>
-
           <form class="fraction-card" aria-label="Choose a fraction" aria-describedby="fraction-help">
             <p class="fraction-card-help" id="fraction-help">
               Type a numerator and denominator to choose the fraction. The diagrams update as you type.
@@ -489,6 +482,13 @@ l0,-`+(t+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
               <input id="denominator" type="number" min="1" max="24" value="${t}" inputmode="numeric" aria-describedby="fraction-help" />
             </div>
           </form>
+
+          <div class="hero-wrap">
+            <p class="eyebrow">Fraction Explorer</p>
+            <h1 id="app-title" aria-label="${e} over ${t}">
+              <span class="hero-fraction">${Sa(e,t,!0)}</span>
+            </h1>
+          </div>
         </div>
 
         <div class="practice-bar">
