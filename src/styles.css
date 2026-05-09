@@ -46,6 +46,19 @@ main {
   margin: 0 auto;
 }
 
+.app-header {
+  margin-bottom: clamp(18px, 3vw, 30px);
+}
+
+.app-header h1 {
+  margin: 0;
+  color: var(--blue);
+  font-size: clamp(1.35rem, 3vw, 2.2rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
 .intro {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
@@ -81,6 +94,11 @@ h1 {
   display: grid;
   justify-items: center;
   text-align: center;
+}
+
+.hero-fraction-wrap {
+  font-size: clamp(2.2rem, 6.5vw, 4.4rem);
+  line-height: 1;
 }
 
 .hero-fraction {
@@ -152,6 +170,7 @@ h1 {
 .settings-button:focus,
 .settings-toggle input:focus-visible + span,
 .settings-order-controls button:focus,
+.money-group-toggle input:focus-visible + span,
 .reveal-toggle:focus {
   outline: 3px solid var(--yellow);
   outline-offset: 2px;
@@ -530,6 +549,20 @@ h1 {
   fill: var(--red);
 }
 
+.pie-slice-label {
+  fill: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.pie-slice-label-selected {
+  fill: white;
+}
+
 .equivalence-fill-blue {
   fill: var(--blue);
 }
@@ -733,6 +766,66 @@ h1 {
   align-content: flex-start;
 }
 
+.money-group-toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.money-group-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+
+.money-groups {
+  gap: 14px;
+}
+
+.money-group {
+  display: grid;
+  min-width: 132px;
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 58%);
+}
+
+.money-group-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.money-group-coins {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.money-group .coin {
+  width: 58px;
+  height: 58px;
+}
+
+.money-group-hidden {
+  min-height: 96px;
+  place-items: center;
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 1.9rem;
+  font-weight: 900;
+}
+
 .coin {
   display: inline-grid;
   width: 72px;
@@ -817,7 +910,37 @@ h1 {
 }
 
 .hundred-grid {
+  --hundred-shade-a: var(--green);
+  --hundred-shade-b: var(--blue);
   grid-template-columns: repeat(10, 1fr);
+}
+
+.hundred-grid span {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: clamp(0.62rem, 1.8vw, 0.9rem);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.hundred-grid span.selected {
+  color: white;
+}
+
+.hundred-grid span.shade-a {
+  border-color: #1d6f56;
+  background: var(--hundred-shade-a);
+}
+
+.hundred-grid span.shade-b {
+  border-color: #245f9b;
+  background: var(--hundred-shade-b);
+}
+
+.hundred-grid span.partial {
+  border-color: #6f7d8a;
+  color: var(--ink);
 }
 
 .custom-grid {

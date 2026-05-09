@@ -12,6 +12,7 @@ const state = {
   denominator: defaultFraction.denominator,
   gridMultiple: 4,
   equivalenceMultiple: 2,
+  moneyGrouped: false,
   settingsOpen: false,
   revealed: {
     numberline: false,
@@ -157,6 +158,7 @@ function normalizeState() {
   state.numerator = Math.max(Math.trunc(state.numerator) || 0, 0);
   state.gridMultiple = clamp(Math.trunc(state.gridMultiple) || 1, 1, 12);
   state.equivalenceMultiple = clamp(Math.trunc(state.equivalenceMultiple) || 2, 2, 8);
+  state.moneyGrouped = Boolean(state.moneyGrouped);
   panelIds.forEach((panelId) => {
     state.enabledPanels[panelId] = state.enabledPanels[panelId] !== false;
   });
@@ -286,10 +288,6 @@ function fractionalPennyParts(numerator, denominator) {
   };
 }
 
-function exactHundredthsFor(numerator, denominator) {
-  return exactPenceFor(numerator, denominator);
-}
-
 function moneyTextFromPence(pence) {
   return `£${(pence / 100).toFixed(2)}`;
 }
@@ -322,6 +320,18 @@ function renderFractionalPenny(fractionalPenny, fractionalPennyLabel) {
   `;
 }
 
+function fractionalPennyPartsForGroup(denominator) {
+  const remainder = 100 % denominator;
+  if (remainder === 0) {
+    return null;
+  }
+  const divisor = gcd(remainder, denominator);
+  return {
+    numerator: remainder / divisor,
+    denominator: denominator / divisor,
+  };
+}
+
 function hideAnswers() {
   panelIds.forEach((id) => {
     state.revealed[id] = false;
@@ -331,10 +341,7 @@ function hideAnswers() {
 function availablePanelIds(numerator, denominator) {
   const visible = ["numberline", "decimalNumberline", "pie", "money"];
   if (numerator <= denominator) {
-    if (exactHundredthsFor(numerator, denominator) !== null) {
-      visible.push("hundredGrid");
-    }
-    visible.push("customGrid");
+    visible.push("hundredGrid", "customGrid");
   }
   visible.push("pictogram", "equivalence", "percentage");
   return visible;
@@ -351,6 +358,7 @@ function applyUrlSettings() {
   const denominatorParam = params.get("d");
   const gridMultipleParam = params.get("gm");
   const equivalenceMultipleParam = params.get("em");
+  const moneyGroupedParam = params.get("mg");
   const numerator = Number(numeratorParam);
   const denominator = Number(denominatorParam);
   const gridMultiple = Number(gridMultipleParam);
@@ -369,6 +377,9 @@ function applyUrlSettings() {
   }
   if (equivalenceMultipleParam !== null && Number.isFinite(equivalenceMultiple)) {
     state.equivalenceMultiple = equivalenceMultiple;
+  }
+  if (moneyGroupedParam !== null) {
+    state.moneyGrouped = moneyGroupedParam === "1";
   }
   if (panels !== null) {
     const enabled = new Set(
@@ -412,6 +423,7 @@ function syncUrlSettings() {
   params.set("d", String(state.denominator));
   params.set("gm", String(state.gridMultiple));
   params.set("em", String(state.equivalenceMultiple));
+  params.set("mg", state.moneyGrouped ? "1" : "0");
   params.set(
     "panels",
     state.panelOrder.filter((panelId) => state.enabledPanels[panelId]).join(","),
@@ -514,6 +526,38 @@ function renderCoinImage(coin) {
     <span class="coin coin-image" aria-label="${coinLabels[coin]} coin">
       <img src="${assetPath(`coin_images/${coinImageFiles[coin]}`)}" alt="" aria-hidden="true" />
     </span>
+  `;
+}
+
+function renderMoneyGroup(groupIndex, groupPenceValue, denominator, revealed) {
+  if (!revealed) {
+    return `
+      <div class="money-group money-group-hidden" aria-label="hidden money group ${groupIndex + 1}">
+        <span>?</span>
+      </div>
+    `;
+  }
+
+  const wholePence = Math.floor(groupPenceValue);
+  const fractionalPenny = groupPenceValue - wholePence;
+  const fractionalPennyFraction = fractionalPennyPartsForGroup(denominator);
+  const fractionalPennyLabel = fractionalPennyFraction
+    ? `${fractionalPennyFraction.numerator}/${fractionalPennyFraction.denominator}`
+    : "";
+  const coins = moneyCoins(wholePence);
+  const coinHtml = coins.map((coin) => renderCoinImage(coin)).join("");
+  const fractionalCoinHtml = fractionalPennyFraction
+    ? renderFractionalPenny(fractionalPenny, fractionalPennyLabel)
+    : "";
+  const groupLabel = `${formatPence(groupPenceValue)}p`;
+
+  return `
+    <div class="money-group" aria-label="group ${groupIndex + 1}: ${groupLabel}">
+      <span class="money-group-label">${groupLabel}</span>
+      <div class="money-group-coins">
+        ${coinHtml}${fractionalCoinHtml || (coinHtml ? "" : `<span class="zero-money">0p</span>`)}
+      </div>
+    </div>
   `;
 }
 
@@ -716,7 +760,20 @@ function renderDecimalNumberLine(numerator, denominator) {
   `;
 }
 
-function renderPieSvg(denominator, selectedSlices, revealed) {
+function renderPieSliceLabel(index, denominator, selected, partOffset = 0) {
+  const position = denominator === 1
+    ? { x: 100, y: 100 }
+    : polarToCartesian(100, 100, 54, ((index + 0.5) / denominator) * 360);
+  return `
+    <text
+      class="pie-slice-label ${selected ? "pie-slice-label-selected" : ""}"
+      x="${position.x}"
+      y="${position.y}"
+    >${partOffset + index + 1}</text>
+  `;
+}
+
+function renderPieSvg(denominator, selectedSlices, revealed, partOffset = 0) {
   const slices =
     denominator === 1
       ? `<circle cx="100" cy="100" r="92" class="${revealed && selectedSlices > 0 ? "pie-selected" : "pie-empty"}"></circle>`
@@ -724,10 +781,15 @@ function renderPieSvg(denominator, selectedSlices, revealed) {
           const selected = revealed && index < selectedSlices;
           return `<path d="${wedgePath(index, denominator)}" class="${selected ? "pie-selected" : "pie-empty"}"></path>`;
         }).join("");
+  const labels = Array.from({ length: denominator }, (_, index) => {
+    const selected = revealed && index < selectedSlices;
+    return renderPieSliceLabel(index, denominator, selected, partOffset);
+  }).join("");
 
   return `
     <svg class="pie" viewBox="0 0 200 200" role="img">
       ${slices}
+      ${labels}
       <circle cx="100" cy="100" r="92" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
     </svg>
   `;
@@ -738,7 +800,7 @@ function renderPie(numerator, denominator) {
   const pieCount = wholeScaleFor(numerator, denominator);
   const pies = Array.from({ length: pieCount }, (_, index) => {
     const selectedSlices = clamp(numerator - index * denominator, 0, denominator);
-    return renderPieSvg(denominator, selectedSlices, revealed);
+    return renderPieSvg(denominator, selectedSlices, revealed, index * denominator);
   }).join("");
   const revealedText = fractionValue(numerator, denominator) > 1
     ? `${numerator}/${denominator} is equal to ${mixedNumberWords(numerator, denominator)}. That amount is shaded across the wholes.`
@@ -839,7 +901,9 @@ function renderEquivalence(numerator, denominator) {
 
 function renderMoney(numerator, denominator) {
   const revealed = state.revealed.money;
+  const grouped = state.moneyGrouped;
   const penceValue = (numerator / denominator) * 100;
+  const groupPenceValue = 100 / denominator;
   const wholePence = Math.floor(penceValue);
   const fractionalPenny = penceValue - wholePence;
   const hasFractionalPenny = fractionalPenny > 0.0001;
@@ -849,17 +913,25 @@ function renderMoney(numerator, denominator) {
     : "";
   const displayMoney = moneyTextFromPence(penceValue);
   const penceText = formatPence(penceValue);
+  const groupPenceText = formatPence(groupPenceValue);
+  const groupFractionalPennyFraction = fractionalPennyPartsForGroup(denominator);
+  const groupFractionalPennyLabel = groupFractionalPennyFraction
+    ? `${groupFractionalPennyFraction.numerator}/${groupFractionalPennyFraction.denominator}`
+    : "";
   const fractionWordsText = sentenceStart(fractionWords(numerator, denominator));
   const exactPence = exactPenceFor(numerator, denominator);
-  const revealedText = fractionValue(numerator, denominator) > 1
+  const amountText = fractionValue(numerator, denominator) > 1
     ? exactPence === null
       ? `${fractionWordsText} of £1 is about ${displayMoney}. That is ${penceText}p.`
       : `${fractionWordsText} of £1 is ${displayMoney}. That is ${moneyAmountWords(exactPence)}, which is ${exactPence}p.`
     : exactPence === null
       ? `${fractionWordsText} of £1 is about ${displayMoney}. That is ${penceText}p.`
       : `${fractionWordsText} of £1 is ${displayMoney}. That is ${exactPence}p.`;
+  const revealedText = grouped
+    ? `${amountText} It is shown as ${numerator} ${plural(numerator, "group")} of ${groupPenceText}p.`
+    : amountText;
   const coins = moneyCoins(wholePence);
-  const coinCount = coins.length + (hasFractionalPenny ? 1 : 0);
+  const ungroupedCoinCount = coins.length + (hasFractionalPenny ? 1 : 0);
   const wholeCoinHtml = coins.length
     ? coins
         .map(
@@ -873,14 +945,31 @@ function renderMoney(numerator, denominator) {
   const coinHtml = wholeCoinHtml || fractionalCoinHtml
     ? `${wholeCoinHtml}${fractionalCoinHtml}`
     : `<span class="zero-money">0p</span>`;
-  const hiddenCoins = coinCount
-    ? Array.from({ length: coinCount })
+  const hiddenCoins = ungroupedCoinCount
+    ? Array.from({ length: ungroupedCoinCount })
         .map(
           (_, index) =>
             `<span class="coin coin-hidden" aria-label="hidden coin ${index + 1}">?</span>`,
         )
         .join("")
     : `<span class="zero-money">0 coins</span>`;
+  const groupedCoinHtml = numerator
+    ? Array.from({ length: numerator })
+        .map((_, index) => renderMoneyGroup(index, groupPenceValue, denominator, revealed))
+        .join("")
+    : `<span class="zero-money">0p</span>`;
+  const moneyHtml = grouped
+    ? groupedCoinHtml
+    : revealed
+      ? coinHtml
+      : hiddenCoins;
+  const moneyAriaLabel = grouped
+    ? revealed
+      ? `${penceText} pence shown as ${numerator} ${plural(numerator, "group")} of ${groupPenceText} pence`
+      : `${numerator} hidden money ${plural(numerator, "group")}`
+    : revealed
+      ? `${penceText} pence shown using UK coins`
+      : `${ungroupedCoinCount} hidden UK ${plural(ungroupedCoinCount, "coin")}`;
 
   return `
     <section class="panel" aria-labelledby="money-title">
@@ -890,20 +979,85 @@ function renderMoney(numerator, denominator) {
         revealedText,
         `If £1 is one whole, what amount is ${fractionWords(numerator, denominator)}?`,
       )}
-      <div class="coins" role="img" aria-label="${revealed ? `${penceText} pence shown using UK coins` : `${coinCount} hidden UK ${plural(coinCount, "coin")}`}">
-        ${revealed ? coinHtml : hiddenCoins}
+      <label class="money-group-toggle">
+        <input type="checkbox" data-money-group ${grouped ? "checked" : ""} />
+        <span>Group</span>
+      </label>
+      <div class="coins ${grouped ? "money-groups" : ""}" role="img" aria-label="${moneyAriaLabel}">
+        ${moneyHtml}
       </div>
-      ${revealed && hasFractionalPenny ? `<p class="hint">The last coin shows ${fractionalPennyLabel} of a penny.</p>` : ""}
+      ${
+        revealed && grouped && groupFractionalPennyFraction
+          ? `<p class="hint">Each group includes ${groupFractionalPennyLabel} of a penny.</p>`
+          : revealed && hasFractionalPenny
+            ? `<p class="hint">The last coin shows ${fractionalPennyLabel} of a penny.</p>`
+            : ""
+      }
     </section>
   `;
 }
 
 function renderHundredGrid(numerator, denominator) {
   const revealed = state.revealed.hundredGrid;
-  const exactSquares = exactHundredthsFor(numerator, denominator) ?? 0;
+  const shadedHundredthsNumerator = numerator * 100;
+  const wholeSquares = Math.floor(shadedHundredthsNumerator / denominator);
+  const partialSquareNumerator = shadedHundredthsNumerator % denominator;
+  const hasPartialSquare = partialSquareNumerator > 0;
+  const totalSquaresText = formatPence(shadedHundredthsNumerator / denominator);
+  const partialSquareDivisor = gcd(partialSquareNumerator, denominator);
+  const partialSquareFraction = hasPartialSquare
+    ? `${partialSquareNumerator / partialSquareDivisor}/${denominator / partialSquareDivisor}`
+    : "";
+  const partialSquareText = hasPartialSquare
+    ? ` plus ${partialSquareFraction} of one more square`
+    : "";
+  const hundredthParts = Array.from({ length: numerator }, (_, index) => ({
+    start: (index * 100) / denominator,
+    end: ((index + 1) * 100) / denominator,
+    color: index % 2 === 0 ? "var(--hundred-shade-a)" : "var(--hundred-shade-b)",
+    className: index % 2 === 0 ? "shade-a" : "shade-b",
+  }));
   const cells = Array.from({ length: 100 }, (_, index) => {
-    const selected = revealed && index < exactSquares;
-    return `<span class="${selected ? "selected" : ""}"></span>`;
+    const segments = revealed
+      ? hundredthParts
+          .map((part) => ({
+            start: Math.max(index, part.start),
+            end: Math.min(index + 1, part.end),
+            color: part.color,
+            className: part.className,
+          }))
+          .filter((segment) => segment.end - segment.start > 0.0001)
+      : [];
+
+    if (segments.length === 0) {
+      return `<span>${index + 1}</span>`;
+    }
+
+    const isFullSingleSegment =
+      segments.length === 1 &&
+      segments[0].start <= index + 0.0001 &&
+      segments[0].end >= index + 1 - 0.0001;
+
+    if (isFullSingleSegment) {
+      return `<span class="selected ${segments[0].className}">${index + 1}</span>`;
+    }
+
+    const gradientStops = [];
+    let cursor = 0;
+    segments.forEach((segment) => {
+      const start = (segment.start - index) * 100;
+      const end = (segment.end - index) * 100;
+      if (start > cursor) {
+        gradientStops.push(`white ${cursor}% ${start}%`);
+      }
+      gradientStops.push(`${segment.color} ${start}% ${end}%`);
+      cursor = end;
+    });
+    if (cursor < 100) {
+      gradientStops.push(`white ${cursor}% 100%`);
+    }
+
+    return `<span class="partial" style="background:linear-gradient(90deg, ${gradientStops.join(", ")})">${index + 1}</span>`;
   }).join("");
 
   return `
@@ -911,10 +1065,10 @@ function renderHundredGrid(numerator, denominator) {
       ${renderPanelTitle(
         "hundredGrid",
         "100 square",
-        `${numerator}/${denominator} is equal to ${exactSquares}/100, so ${exactSquares} ${plural(exactSquares, "square")} ${exactSquares === 1 ? "is" : "are"} shaded.`,
+        `${numerator}/${denominator} is equal to ${totalSquaresText}/100, so ${wholeSquares} whole ${plural(wholeSquares, "square")}${partialSquareText} ${wholeSquares === 1 && !hasPartialSquare ? "is" : "are"} shaded.`,
         `If the whole is 100 squares, how many squares represent ${fractionWords(numerator, denominator)}?`,
       )}
-      <div class="grid hundred-grid" role="img" aria-label="10 by 10 grid${revealed ? ` with ${exactSquares} of 100 squares shaded` : " with no squares shaded"}">
+      <div class="grid hundred-grid" role="img" aria-label="10 by 10 numbered grid${revealed ? ` with ${totalSquaresText} of 100 squares shaded` : " with no squares shaded"}">
         ${cells}
       </div>
     </section>
@@ -1071,6 +1225,10 @@ function render() {
   app.innerHTML = `
     <main>
       <section class="workspace" aria-labelledby="app-title">
+        <header class="app-header">
+          <h1 id="app-title">Fraction Explorer</h1>
+        </header>
+
         <div class="intro">
           <form class="fraction-card" aria-label="Choose a fraction" aria-describedby="fraction-help">
             <p class="fraction-card-help" id="fraction-help">
@@ -1088,10 +1246,9 @@ function render() {
           </form>
 
           <div class="hero-wrap">
-            <p class="eyebrow">Fraction Explorer</p>
-            <h1 id="app-title" aria-label="${numerator} over ${denominator}">
+            <div class="hero-fraction-wrap" aria-label="${numerator} over ${denominator}">
               <span class="hero-fraction">${mathFraction(numerator, denominator, true)}</span>
-            </h1>
+            </div>
           </div>
         </div>
 
@@ -1156,6 +1313,13 @@ function render() {
     state.equivalenceMultiple = Number(event.target.value);
     normalizeState();
     state.revealed.equivalence = false;
+    syncUrlSettings();
+    render();
+  });
+
+  document.querySelector("[data-money-group]")?.addEventListener("change", (event) => {
+    state.moneyGrouped = event.target.checked;
+    normalizeState();
     syncUrlSettings();
     render();
   });
