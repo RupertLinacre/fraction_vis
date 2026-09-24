@@ -1076,3 +1076,24 @@ h1 {
     width: max-content;
   }
 }
+
+.equivalence-numberline {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.equivalence-tick-label {
+  font-size: 1.25rem;
+}
+
+.equivalence-row-label {
+  fill: var(--muted);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.numberline-shell:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: 2px;
+}

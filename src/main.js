@@ -19,6 +19,7 @@ const state = {
     decimalNumberline: false,
     pie: false,
     equivalence: false,
+    equivalenceNumberline: false,
     money: false,
     hundredGrid: false,
     customGrid: false,
@@ -30,6 +31,7 @@ const state = {
     decimalNumberline: true,
     pie: true,
     equivalence: true,
+    equivalenceNumberline: true,
     money: true,
     hundredGrid: true,
     customGrid: true,
@@ -45,6 +47,7 @@ const state = {
     "customGrid",
     "pictogram",
     "equivalence",
+    "equivalenceNumberline",
     "percentage",
   ],
 };
@@ -59,6 +62,7 @@ const panelLabels = {
   customGrid: "Equivalent fractions grid",
   pictogram: "Apples",
   equivalence: "Equivalent fractions",
+  equivalenceNumberline: "Equivalent fractions on a number line",
   percentage: "Percentage",
 };
 
@@ -343,7 +347,7 @@ function availablePanelIds(numerator, denominator) {
   if (numerator <= denominator) {
     visible.push("hundredGrid", "customGrid");
   }
-  visible.push("pictogram", "equivalence", "percentage");
+  visible.push("pictogram", "equivalence", "equivalenceNumberline", "percentage");
   return visible;
 }
 
@@ -876,7 +880,7 @@ function renderEquivalence(numerator, denominator) {
       )}
       <label class="inline-control equivalence-control">
         <span>Split each part into</span>
-        <input id="equivalenceMultiple" type="range" min="2" max="8" value="${multiple}" />
+        <input id="equivalenceMultiple" data-equivalence-multiple type="range" min="2" max="8" value="${multiple}" />
         <strong>${multiple}</strong>
       </label>
       <div class="equivalence-view" role="img" aria-label="${revealed ? `${numerator} over ${denominator} equals ${equivalentNumerator} over ${equivalentDenominator}` : `Original pie and split pie hidden answer`}">
@@ -894,6 +898,71 @@ function renderEquivalence(numerator, denominator) {
       </div>
       <div class="equivalence-equation" aria-hidden="${revealed ? "false" : "true"}">
         ${revealed ? mathEquivalence(numerator, denominator, multiple) : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderEquivalenceNumberline(numerator, denominator) {
+  const revealed = state.revealed.equivalenceNumberline;
+  const multiple = state.equivalenceMultiple;
+  const maxValue = wholeScaleFor(numerator, denominator);
+  const equivalentDenominator = denominator * multiple;
+  const equivalentNumerator = numerator * multiple;
+  // Both rows share the same scale; scrolling preserves readable fraction labels.
+  const trackWidth = Math.max(904, maxValue * equivalentDenominator * 46);
+  const width = trackWidth + 96;
+  const xFor = (value) => 48 + (value / maxValue) * trackWidth;
+  const rows = [1, multiple].map((split, row) => {
+    const parts = denominator * split;
+    const selectedParts = numerator * split;
+    const axisY = 104 + row * 170;
+    const rods = Array.from({ length: maxValue * parts }, (_, index) => {
+      const group = Math.floor(index / split) % denominator;
+      const fill = revealed && index < selectedParts
+        ? equivalenceFillClasses[group % equivalenceFillClasses.length]
+        : "pie-empty";
+      const x = xFor(index / parts);
+      return `<rect class="svg-rod ${fill}" x="${x}" y="${axisY - 46}" width="${trackWidth / (maxValue * parts)}" height="32"></rect>`;
+    }).join("");
+    const ticks = Array.from({ length: maxValue * parts + 1 }, (_, index) => {
+      const x = xFor(index / parts);
+      const whole = index % parts === 0;
+      const label = whole ? mathMarkup(String(index / parts)) : mathFraction(index, parts);
+      return `
+        <line class="${index % split === 0 ? "svg-tick-line" : "svg-grid-line"}" x1="${x}" x2="${x}" y1="${axisY - 46}" y2="${axisY + 8}"></line>
+        ${revealed || whole ? renderSvgFractionLabel(x, axisY + 14, label, 88, 56, `equivalence-tick-label ${revealed && index === selectedParts ? "svg-math-label-active" : ""}`) : ""}
+      `;
+    }).join("");
+    return `
+      <text class="equivalence-row-label" x="48" y="${axisY - 65}">${row === 0 ? "Original parts" : `Each part split into ${multiple}`}</text>
+      ${rods}
+      <line class="svg-axis-line" x1="48" x2="${width - 48}" y1="${axisY}" y2="${axisY}"></line>
+      ${ticks}
+    `;
+  }).join("");
+  const markerX = xFor(numerator / denominator);
+  return `
+    <section class="panel wide" aria-labelledby="equivalenceNumberline-title">
+      ${renderPanelTitle(
+        "equivalenceNumberline",
+        "Equivalent fractions on a number line",
+        `${numerator}/${denominator} = ${equivalentNumerator}/${equivalentDenominator}. Both fractions reach the same point.`,
+        `Split each part into ${multiple} equal parts. Which fraction reaches the same point?`,
+      )}
+      <label class="inline-control equivalence-control">
+        <span>Split each part into</span>
+        <input id="equivalenceNumberlineMultiple" data-equivalence-multiple type="range" min="2" max="8" value="${multiple}" />
+        <strong>${multiple}</strong>
+      </label>
+      <div class="numberline-shell" tabindex="0" role="region" aria-label="Equivalent fraction number lines; scroll horizontally to explore">
+        <svg class="equivalence-numberline" style="min-width:${width}px" viewBox="0 0 ${width} 350" role="img" aria-label="${revealed ? `${numerator}/${denominator} and ${equivalentNumerator}/${equivalentDenominator} at the same point on aligned number lines from 0 to ${maxValue}` : `Two number lines from 0 to ${maxValue}, with ${denominator} and ${equivalentDenominator} equal parts per whole. Answer hidden.`}">
+          ${rows}
+          ${revealed ? `<line class="svg-answer-marker" x1="${markerX}" x2="${markerX}" y1="50" y2="112"></line><line class="svg-answer-marker" x1="${markerX}" x2="${markerX}" y1="220" y2="282"></line>` : ""}
+        </svg>
+      </div>
+      <div class="equivalence-equation">
+        ${revealed ? mathEquivalence(numerator, denominator, multiple) : `${mathFraction(numerator, denominator)} = ?`}
       </div>
     </section>
   `;
@@ -1208,6 +1277,7 @@ function renderPanel(panelId, numerator, denominator) {
     customGrid: renderCustomGrid,
     pictogram: renderPictogram,
     equivalence: renderEquivalence,
+    equivalenceNumberline: renderEquivalenceNumberline,
     percentage: renderPercentage,
   };
   return panelRenderers[panelId](numerator, denominator);
@@ -1309,12 +1379,17 @@ function render() {
     render();
   });
 
-  document.querySelector("#equivalenceMultiple")?.addEventListener("input", (event) => {
-    state.equivalenceMultiple = Number(event.target.value);
-    normalizeState();
-    state.revealed.equivalence = false;
-    syncUrlSettings();
-    render();
+  document.querySelectorAll("[data-equivalence-multiple]").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const controlId = event.target.id;
+      state.equivalenceMultiple = Number(event.target.value);
+      normalizeState();
+      state.revealed.equivalence = false;
+      state.revealed.equivalenceNumberline = false;
+      syncUrlSettings();
+      render();
+      document.getElementById(controlId)?.focus({ preventScroll: true });
+    });
   });
 
   document.querySelector("[data-money-group]")?.addEventListener("change", (event) => {
